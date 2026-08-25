@@ -105,22 +105,37 @@ async def get_raw_document_file(filename: str):
 
 @router.delete("/{filename}")
 async def delete_document(filename: str):
-    deleted_chunks = vector_db_service.delete_document_chunks(filename)
-    tracker.remove(filename)
-    
-    # Try deleting uploaded file
-    target = UPLOADS_DIR / filename
-    if target.exists():
+    safe = Path(filename).name
+    if safe != filename or filename in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
+    indexed = {s["filename"] for s in vector_db_service.get_all_document_stats()}
+    if filename in indexed:
+        raise HTTPException(
+            status_code=403,
+            detail="Indexed documents cannot be deleted. Contact an admin if a standard must be retired.",
+        )
+
+    uploads_root = UPLOADS_DIR.resolve()
+    target = (uploads_root / safe).resolve()
+    if target.parent != uploads_root:
+        raise HTTPException(status_code=400, detail="Invalid document path.")
+
+    removed = False
+    if target.exists() and target.is_file():
         try:
             target.unlink()
-        except Exception:
-            pass
+            removed = True
+        except Exception as e:
+            app_logger.error("DocsAPI", f"Failed deleting unindexed file {filename}: {e}")
+            raise HTTPException(status_code=500, detail=f"Could not remove file: {e}")
 
-    return {
-        "success": True,
-        "deleted_chunks": deleted_chunks,
-        "filename": filename
-    }
+    tracker.remove(filename)
+    if not removed and not target.exists():
+        return {"success": True, "deleted_chunks": 0, "filename": filename}
+
+    app_logger.info("DocsAPI", f"Removed unindexed upload: {filename}")
+    return {"success": True, "deleted_chunks": 0, "filename": filename}
 
 
 @router.post("/{filename}/reindex")

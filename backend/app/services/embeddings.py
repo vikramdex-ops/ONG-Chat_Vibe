@@ -105,8 +105,11 @@ class EmbeddingService:
             step = min(batch_size, 16)
             vectors: List[List[float]] = []
             for i in range(0, len(texts), step):
-                vectors.extend(model(texts[i:i + step]))
-            return [list(vec) for vec in vectors]
+                raw = model(texts[i:i + step])
+                vectors.extend(self._coerce_vectors(raw))
+            if len(vectors) != len(texts):
+                raise RuntimeError(f"Embedding count mismatch: got {len(vectors)} for {len(texts)} texts")
+            return vectors
         embeddings = model.encode(
             texts,
             batch_size=batch_size,
@@ -114,19 +117,26 @@ class EmbeddingService:
             convert_to_numpy=True,
             normalize_embeddings=True
         )
-        return embeddings.tolist()
+        return self._coerce_vectors(embeddings)
 
     def embed_query(self, query: str) -> List[float]:
-        model = self.get_model()
-        if self._backend == "onnx":
-            return list(model([query])[0])
-        embedding = model.encode(
-            query,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True
-        )
-        return embedding.tolist()
+        vectors = self.embed_texts([query], batch_size=1)
+        if not vectors:
+            raise RuntimeError("Failed to embed query")
+        return vectors[0]
+
+    @staticmethod
+    def _coerce_vectors(raw) -> List[List[float]]:
+        if raw is None:
+            return []
+        if hasattr(raw, "tolist"):
+            raw = raw.tolist()
+        rows = []
+        for vec in raw:
+            if hasattr(vec, "tolist"):
+                vec = vec.tolist()
+            rows.append([float(x) for x in vec])
+        return rows
 
 
 embedding_service = EmbeddingService()

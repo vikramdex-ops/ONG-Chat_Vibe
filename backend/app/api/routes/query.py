@@ -5,8 +5,27 @@ from app.models.schemas import QueryRequest, QueryResponse, SourceContext, Image
 from app.services.rag import rag_service
 from app.services.history import history_service
 from app.core.logging_service import app_logger
+from app.core.config import settings_manager
+from app.core.request_context import request_api_key
+from app.services.llm.factory import get_llm_provider
 
 router = APIRouter(prefix="/api/query", tags=["Query"])
+
+
+def _require_llm_ready() -> None:
+    provider = (request_provider_or_settings())
+    if provider == "gemini":
+        key = request_api_key() or settings_manager.current.llm_api_key or settings_manager.current.gemini_api_key
+        if not key:
+            raise HTTPException(
+                status_code=400,
+                detail="Add your own Gemini API key in Settings before asking. It stays in this browser.",
+            )
+
+
+def request_provider_or_settings() -> str:
+    from app.core.request_context import request_provider
+    return (request_provider() or settings_manager.current.llm_provider or "local").lower()
 
 
 def _query_kwargs(request: QueryRequest) -> dict:
@@ -26,6 +45,7 @@ def _query_kwargs(request: QueryRequest) -> dict:
 async def query_sqa(request: QueryRequest):
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="Please enter a question.")
+    _require_llm_ready()
 
     try:
         response = await rag_service.execute_query(**_query_kwargs(request))
@@ -49,6 +69,7 @@ async def query_sqa(request: QueryRequest):
 async def stream_query_sqa(request: QueryRequest):
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="Please enter a question.")
+    _require_llm_ready()
 
     async def event_generator():
         try:

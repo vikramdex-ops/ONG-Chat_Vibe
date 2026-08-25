@@ -201,6 +201,13 @@ class VectorDBService:
             )
             total_added += len(b_ids)
 
+        try:
+            persist = getattr(self._client, "persist", None)
+            if callable(persist):
+                persist()
+        except Exception:
+            pass
+
         app_logger.success("VectorDB", f"Added {total_added} new chunks to ChromaDB collection '{self._collection_name}'.")
         return total_added
 

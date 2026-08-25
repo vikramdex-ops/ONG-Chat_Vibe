@@ -51,6 +51,12 @@ def test_api_indexing_status():
     assert "state" in data
 
 
+def test_delete_unindexed_missing_is_ok():
+    res = client.delete("/api/documents/not-a-real-file.pdf")
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+
+
 def test_api_index_stop_when_idle():
     res = client.post("/api/index/stop")
     assert res.status_code == 200

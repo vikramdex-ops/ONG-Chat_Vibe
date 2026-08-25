@@ -193,7 +193,10 @@ export async function deleteDocument(filename: string): Promise<any> {
   const res = await fetch(`${API_BASE}/documents/${encodeURIComponent(filename)}`, {
     method: 'DELETE'
   });
-  if (!res.ok) throw new Error('Failed to delete document');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to delete document' }));
+    throw new Error(err.detail || 'Failed to delete document');
+  }
   return res.json();
 }
 

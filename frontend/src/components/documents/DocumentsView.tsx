@@ -40,14 +40,14 @@ export const DocumentsView: React.FC = () => {
   }, []);
 
   const handleDelete = async (filename: string) => {
-    if (!window.confirm(`Are you sure you want to remove '${filename}' from the indexed knowledge base?`)) {
+    if (!window.confirm(`Remove unindexed upload '${filename}' from the staging library?`)) {
       return;
     }
     try {
       await deleteDocument(filename);
       await fetchDocs();
     } catch (e: any) {
-      alert(`Failed to delete document: ${e.message}`);
+      alert(e.message || 'Failed to remove document');
     }
   };
 
@@ -216,14 +216,20 @@ export const DocumentsView: React.FC = () => {
                           Inspect Chunks
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(doc.filename)}
-                        className="p-1.5 rounded-lg text-fg-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        title="Delete document chunks from vector database"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {doc.status === 'unindexed' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(doc.filename)}
+                          className="p-1.5 rounded-lg text-fg-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove unindexed upload"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-fg-muted font-mono px-1" title="Indexed standards cannot be deleted">
+                          locked
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

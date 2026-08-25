@@ -281,7 +281,12 @@ class IndexingService:
                 all_files = [f for f in all_files if f.name.lower() in wanted]
             total_discovered = len(all_files)
 
-            # 2. Filter out already processed files (Resumable feature)
+            chroma_count = vector_db_service.count()
+            if chroma_count == 0 and not req.filenames:
+                app_logger.warning("Indexer", "Vector store is empty — ignoring stale processed-file marks and re-indexing all uploads.")
+                for f in all_files:
+                    tracker.remove(f.name)
+
             if req.filenames:
                 pending_files = list(all_files)
             else:
@@ -304,7 +309,6 @@ class IndexingService:
                 self._status.state = "processing"
 
             total_chunks_added = 0
-            accumulated_chunks = []
 
             for index, file_path in enumerate(pending_files):
                 if not still_current():
@@ -344,10 +348,19 @@ class IndexingService:
                         self._mark_stopped("Stopped by user")
                         return
                     if file_chunks:
-                        accumulated_chunks.extend(file_chunks)
                         app_logger.success("Indexer", f"Extracted {len(file_chunks)} chunks from {file_name}", document=file_name)
-
-                    tracker.mark_processed(str(file_path))
+                        added = self._flush_chunks(file_chunks)
+                        total_chunks_added += added
+                        with self._status_lock:
+                            self._status.total_chunks_indexed = total_chunks_added
+                        tracker.mark_processed(str(file_path))
+                        app_logger.success(
+                            "Indexer",
+                            f"Saved {added} vectors for {file_name}. Collection now {vector_db_service.count()} chunks.",
+                            document=file_name,
+                        )
+                    else:
+                        app_logger.warning("Indexer", f"No text chunks produced for {file_name}", document=file_name)
 
                 except IndexingCancelled:
                     app_logger.warning("Indexer", f"Stopped while processing {file_name}", document=file_name)
@@ -355,16 +368,6 @@ class IndexingService:
                     return
                 except Exception as file_err:
                     app_logger.error("Indexer", f"Error processing {file_name}: {file_err}", document=file_name)
-
-                # Batch embed & write when buffer reaches threshold
-                if len(accumulated_chunks) >= settings.batch_write_size:
-                    total_chunks_added += self._flush_chunks(accumulated_chunks)
-                    accumulated_chunks.clear()
-
-            # Flush remaining chunks
-            if accumulated_chunks:
-                total_chunks_added += self._flush_chunks(accumulated_chunks)
-                accumulated_chunks.clear()
 
             elapsed_total = round(time.time() - start_time, 1)
             app_logger.success("Indexer", f"Indexing completed successfully! Added {total_chunks_added} chunks in {elapsed_total}s.")
