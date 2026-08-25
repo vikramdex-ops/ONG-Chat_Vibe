@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Copy, Check, RefreshCw, Clock, AlertCircle, Download, BookmarkPlus } from 'lucide-react';
 import { SourceContext } from '../../types';
 import { bestSourceForSentence, citationIndex, splitSentences } from '../../lib/citations';
+import { useInkType } from '../../lib/useInkType';
 
 interface AnswerCardProps {
   answer: string;
@@ -32,13 +33,15 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
-  const sentences = useMemo(() => splitSentences(answer), [answer]);
-  const streaming = isLoading && !!answer;
+  const ink = useInkType(answer, isLoading || (!!answer && false) ? true : isLoading);
+  const visible = isLoading || ink.length < answer.length ? ink : answer;
+  const stillWriting = visible.length < answer.length || isLoading;
+  const sentences = useMemo(() => splitSentences(visible), [visible]);
 
   useEffect(() => {
-    if (!streaming) return;
+    if (!stillWriting) return;
     streamRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [answer, streaming]);
+  }, [visible, stillWriting]);
 
   const handleCopy = () => {
     if (!answer) return;
@@ -57,26 +60,26 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
           <div>
             <h3 className="font-semibold text-sm text-fg flex items-center gap-2">
               SQA
-              {isLoading && (
+              {stillWriting && (
                 <span className="text-[10px] font-normal font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                  {streaming ? 'Typing…' : statusMessage || 'Thinking…'}
+                  {visible ? 'Inking…' : statusMessage || 'Charging…'}
                 </span>
               )}
             </h3>
             <span className="text-[11px] text-fg-muted">
-              {streaming ? 'Streaming grounded answer' : answer ? 'Click a sentence to trace its clause' : 'Answers appear here as they are written'}
+              {stillWriting ? 'Plotting the grounded answer' : answer ? 'Click a sentence to trace its clause' : 'Answers appear here as they are written'}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {executionTimeMs !== undefined && executionTimeMs > 0 && !isLoading && (
+          {executionTimeMs !== undefined && executionTimeMs > 0 && !stillWriting && (
             <div className="telemetry-pill bg-surface-muted border-line text-fg-muted">
               <Clock className="w-3 h-3 text-fg-muted" />
               <span>{executionTimeMs} ms</span>
             </div>
           )}
-          {answer && !isLoading && (
+          {answer && !stillWriting && (
             <>
               {onBookmark && (
                 <button type="button" onClick={onBookmark} className="p-1.5 rounded-lg bg-surface-muted border border-line text-fg" title="Bookmark">
@@ -114,21 +117,14 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
             <div className="text-xs mt-1">{error}</div>
           </div>
         </div>
-      ) : isLoading && !answer ? (
-        <div className="py-8 flex items-center gap-3 text-sm text-fg">
-          <div className="flex items-center gap-1.5 px-1">
-            <span className="think-dot" />
-            <span className="think-dot" />
-            <span className="think-dot" />
-          </div>
-          <span className="text-fg-muted">{statusMessage || 'Searching the knowledge base…'}</span>
-        </div>
-      ) : streaming ? (
+      ) : stillWriting && !visible ? (
+        <SightGlass label={statusMessage || 'Charging the retrieval line'} />
+      ) : stillWriting ? (
         <div ref={streamRef} className="stream-body text-sm leading-7 text-fg">
-          {answer}
+          {visible}
           <span className="type-caret" aria-hidden />
         </div>
-      ) : answer ? (
+      ) : visible ? (
         <div className="prose-answer space-y-1.5">
           {sentences.map((sentence, idx) => (
             <button
@@ -151,3 +147,17 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
     </div>
   );
 };
+
+const SightGlass: React.FC<{ label: string }> = ({ label }) => (
+  <div className="py-6 flex items-center gap-4">
+    <div className="sight-glass" aria-hidden>
+      <span className="sight-bead" />
+      <span className="sight-bead" />
+      <span className="sight-bead" />
+    </div>
+    <div>
+      <div className="text-sm font-medium text-fg">Line charging</div>
+      <div className="text-xs text-fg-muted mt-0.5">{label}</div>
+    </div>
+  </div>
+);

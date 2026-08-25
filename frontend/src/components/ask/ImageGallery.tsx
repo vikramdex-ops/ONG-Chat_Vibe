@@ -16,9 +16,10 @@ import { resolveApiUrl } from '../../lib/apiBase';
 
 interface ImageGalleryProps {
   images: ImageResult[];
+  compact?: boolean;
 }
 
-export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
+export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, compact = false }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
   const [scale, setScale] = useState(1);
@@ -38,18 +39,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
   }));
 
   if (!resolvedImages.length) {
-    return (
-      <div className="panel p-5">
-        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-line">
-          <ImageIcon className="w-4 h-4 text-fg-muted" />
-          <h3 className="font-semibold text-sm text-fg">Relevant Images</h3>
-        </div>
-        <div className="py-8 flex flex-col items-center justify-center text-center text-fg-muted text-xs">
-          <ImageIcon className="w-8 h-8 text-fg-muted mb-2" />
-          <span>No relevant images found for this query.</span>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const currentImage = resolvedImages[currentIndex];

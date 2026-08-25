@@ -295,6 +295,14 @@ export const AskView: React.FC<AskViewProps> = ({
             </div>
           )}
 
+          <PipelineVisualizer
+            stage={pipelineStage}
+            providerLabel={providerLabel}
+            topK={topK}
+            sourceCount={sources.length}
+            statusMessage={statusMessage || error || ''}
+          />
+
           {hasTurn && (
             <div className="space-y-4">
               <div className="flex justify-end">
@@ -303,21 +311,26 @@ export const AskView: React.FC<AskViewProps> = ({
                 </div>
               </div>
 
-              {images.length > 0 && <ImageGallery images={images} />}
-
-              <AnswerCard
-                answer={answer}
-                executionTimeMs={executionTimeMs}
-                isLoading={isLoading}
-                statusMessage={statusMessage}
-                onRegenerate={() => handleAsk(asked)}
-                error={error}
-                sources={sources}
-                activeSentence={activeSentence}
-                onTraceSentence={handleTrace}
-                onExport={answer ? handleExport : undefined}
-                onBookmark={answer ? handleBookmark : undefined}
-              />
+              <div className={`grid gap-4 items-start ${images.length ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''}`}>
+                <AnswerCard
+                  answer={answer}
+                  executionTimeMs={executionTimeMs}
+                  isLoading={isLoading}
+                  statusMessage={statusMessage}
+                  onRegenerate={() => handleAsk(asked)}
+                  error={error}
+                  sources={sources}
+                  activeSentence={activeSentence}
+                  onTraceSentence={handleTrace}
+                  onExport={answer ? handleExport : undefined}
+                  onBookmark={answer ? handleBookmark : undefined}
+                />
+                {images.length > 0 && (
+                  <div className="lg:sticky lg:top-20">
+                    <ImageGallery images={images} compact />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

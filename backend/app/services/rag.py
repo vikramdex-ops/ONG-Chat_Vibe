@@ -75,7 +75,7 @@ def construct_prompt(
 
 
 def resolve_images(sources: List[SourceContext]) -> List[ImageResult]:
-    """Resolve and dedupe images by filename so a copied knowledge base still works."""
+    """Resolve figures and drop banner / watermark ads (wide short images)."""
     image_map: Dict[str, ImageResult] = {}
 
     for s in sources:
@@ -85,6 +85,8 @@ def resolve_images(sources: List[SourceContext]) -> List[ImageResult]:
             if not filename or filename in image_map:
                 continue
             resolved = resolve_image_file(img_path_str)
+            if resolved and _is_banner_image(resolved):
+                continue
             display_name = resolved.name if resolved else filename
             image_map[filename] = ImageResult(
                 id=Path(display_name).stem,
@@ -95,6 +97,22 @@ def resolve_images(sources: List[SourceContext]) -> List[ImageResult]:
             )
 
     return sorted(list(image_map.values()), key=lambda x: (x.source, x.page))
+
+
+def _is_banner_image(path: Path) -> bool:
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            width, height = im.size
+        if height <= 140 and width >= 2.8 * max(height, 1):
+            return True
+        if width / max(height, 1) >= 4.2:
+            return True
+        if width * height < 12000:
+            return True
+    except Exception:
+        return False
+    return False
 
 
 class RAGService:
