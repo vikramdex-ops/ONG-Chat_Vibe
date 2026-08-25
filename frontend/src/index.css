@@ -1,0 +1,100 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased overflow-x-hidden;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 1);
+}
+
+/* Engineering Glowing Badges */
+.telemetry-pill {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium border transition-colors;
+}
+
+/* Smooth Pulse Animation */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(0.98); }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Markdown typography inside Answer Card */
+.prose-dark {
+  @apply text-slate-200 text-sm leading-relaxed;
+}
+
+.prose-dark p {
+  @apply mb-3 text-slate-200 leading-relaxed;
+}
+
+.prose-dark p:last-child {
+  @apply mb-0;
+}
+
+.prose-dark h1, .prose-dark h2, .prose-dark h3, .prose-dark h4 {
+  @apply font-semibold text-white mt-4 mb-2 tracking-tight;
+}
+
+.prose-dark h1 { @apply text-lg; }
+.prose-dark h2 { @apply text-base text-blue-400; }
+.prose-dark h3 { @apply text-sm text-blue-300; }
+
+.prose-dark ul {
+  @apply list-disc list-outside pl-5 mb-3 space-y-1 text-slate-300;
+}
+
+.prose-dark ol {
+  @apply list-decimal list-outside pl-5 mb-3 space-y-1 text-slate-300;
+}
+
+.prose-dark li {
+  @apply leading-normal;
+}
+
+.prose-dark code {
+  @apply bg-slate-800 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs;
+}
+
+.prose-dark pre {
+  @apply bg-slate-900 border border-slate-800 p-3 rounded-lg overflow-x-auto my-3 text-xs font-mono;
+}
+
+.prose-dark blockquote {
+  @apply border-l-2 border-blue-500 pl-3 italic text-slate-400 my-2;
+}
+
+.prose-dark table {
+  @apply w-full text-left border-collapse my-3 text-xs;
+}
+
+.prose-dark th {
+  @apply bg-slate-800/80 p-2 font-semibold text-slate-200 border-b border-slate-700;
+}
+
+.prose-dark td {
+  @apply p-2 border-b border-slate-800/60 text-slate-300;
+}

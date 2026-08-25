@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+.venv/
+venv/
+env/
+.env
+*.env
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data — large runtime files not needed in repo
+backend/data/chroma_db/
+backend/data/images/
+backend/data/processed_files.json
+backend/data/query_history.db
+backend/data/settings.json
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
