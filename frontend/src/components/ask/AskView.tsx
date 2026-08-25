@@ -4,11 +4,11 @@ import { AnswerCard } from './AnswerCard';
 import { SourceCard } from './SourceCard';
 import { ImageGallery } from './ImageGallery';
 import { DocumentViewerModal } from '../viewer/DocumentViewerModal';
-import { PipelineVisualizer, PipelineStage } from './PipelineVisualizer';
+import { PipelineStage } from './PipelineVisualizer';
 import { AnswerMode, ChatTurn, DocumentInfo, HealthStatus, ImageResult, QueryResponse, SourceContext } from '../../types';
 import { createBookmark, executeQuery, exportBriefingHtml, getDocuments, streamQuery } from '../../services/api';
 import { bestSourceForSentence, splitSentences } from '../../lib/citations';
-import { Layers } from 'lucide-react';
+import { ChevronDown, Layers, MessageCircle, SlidersHorizontal } from 'lucide-react';
 
 const DEMO_Q = 'What are the hydrostatic testing requirements for API 650 tanks?';
 
@@ -30,6 +30,7 @@ export const AskView: React.FC<AskViewProps> = ({
   onQueryComplete,
 }) => {
   const [question, setQuestion] = useState(initialQuestion || '');
+  const [asked, setAsked] = useState('');
   const [answer, setAnswer] = useState('');
   const [sources, setSources] = useState<SourceContext[]>([]);
   const [images, setImages] = useState<ImageResult[]>([]);
@@ -48,8 +49,7 @@ export const AskView: React.FC<AskViewProps> = ({
   const [docs, setDocs] = useState<DocumentInfo[]>([]);
   const [thread, setThread] = useState<ChatTurn[]>([]);
   const [followUp, setFollowUp] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
+  const [showRefine, setShowRefine] = useState(false);
   const [activeSentence, setActiveSentence] = useState<number | null>(null);
   const [pulsedId, setPulsedId] = useState<string | null>(null);
   const [tracedId, setTracedId] = useState<string | null>(null);
@@ -66,24 +66,14 @@ export const AskView: React.FC<AskViewProps> = ({
   useEffect(() => {
     if (!replay) return;
     setQuestion(replay.question);
+    setAsked(replay.question);
     setAnswer(replay.answer);
     setSources(replay.sources || []);
     setImages(replay.images || []);
     setError(null);
     setIsLoading(false);
-    const stages: PipelineStage[] = ['query', 'search', 'context', 'llm', 'complete'];
-    let i = 0;
-    setPipelineStage('query');
-    const timer = window.setInterval(() => {
-      i += 1;
-      if (i >= stages.length) {
-        window.clearInterval(timer);
-        onReplayConsumed?.();
-        return;
-      }
-      setPipelineStage(stages[i]);
-    }, 280);
-    return () => window.clearInterval(timer);
+    setPipelineStage('complete');
+    onReplayConsumed?.();
   }, [replay, onReplayConsumed]);
 
   useEffect(() => {
@@ -104,11 +94,11 @@ export const AskView: React.FC<AskViewProps> = ({
   });
 
   const canAsk = question.trim().length > 0;
-  const provider = (health?.details?.llm_provider as string | undefined) || 'gemini';
-  const providerLabel = provider === 'gemini' ? 'Gemini LLM' : provider === 'mock' ? 'Mock LLM' : 'LLM';
+  const hasTurn = !!asked || isLoading;
 
   const handleClear = () => {
     setQuestion('');
+    setAsked('');
     setAnswer('');
     setSources([]);
     setImages([]);
@@ -126,12 +116,13 @@ export const AskView: React.FC<AskViewProps> = ({
     if (!q || isLoading) return;
     if (override) setQuestion(override);
 
+    setAsked(q);
     setAnswer('');
     setSources([]);
     setImages([]);
     setError(null);
     setIsLoading(true);
-    setStatusMessage('Preparing query…');
+    setStatusMessage('Reading your question…');
     setPipelineStage('query');
     setActiveSentence(null);
 
@@ -198,11 +189,7 @@ export const AskView: React.FC<AskViewProps> = ({
   };
 
   const handleExport = async () => {
-    const html = await exportBriefingHtml({
-      question,
-      answer,
-      sources,
-    });
+    const html = await exportBriefingHtml({ question: asked || question, answer, sources });
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -213,134 +200,188 @@ export const AskView: React.FC<AskViewProps> = ({
   };
 
   const handleBookmark = async () => {
-    await createBookmark({ name: question.slice(0, 72), question });
+    await createBookmark({ name: (asked || question).slice(0, 72), question: asked || question });
   };
 
   const indexed = docs.filter((d) => d.status === 'indexed');
+  const stageLabel =
+    pipelineStage === 'search' ? 'Searching standards' :
+    pipelineStage === 'context' ? 'Gathering clauses' :
+    pipelineStage === 'llm' ? 'Writing answer' :
+    pipelineStage === 'complete' ? 'Done' :
+    statusMessage || 'Working';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <QuestionComposer
-        question={question}
-        setQuestion={setQuestion}
-        onAsk={() => handleAsk()}
-        onClear={handleClear}
-        isLoading={isLoading}
-        canAsk={canAsk}
-        onDemo={() => handleAsk(DEMO_Q)}
-      />
-
-      <div className="panel p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        <label className="text-[11px] text-fg-muted">
-          Mode
-          <select value={answerMode} onChange={(e) => setAnswerMode(e.target.value as AnswerMode)} className="field mt-1">
-            <option value="concise">Concise</option>
-            <option value="quoted">Clause-quoted</option>
-            <option value="checklist">Checklist</option>
-          </select>
-        </label>
-        <label className="text-[11px] text-fg-muted">
-          Family
-          <select value={family} onChange={(e) => setFamily(e.target.value)} className="field mt-1">
-            <option value="">All</option>
-            <option value="API">API</option>
-            <option value="ASME">ASME</option>
-            <option value="ISO">ISO</option>
-            <option value="ASTM">ASTM</option>
-          </select>
-        </label>
-        <label className="text-[11px] text-fg-muted">
-          Year
-          <input value={year} onChange={(e) => setYear(e.target.value)} placeholder="1996" className="field mt-1" />
-        </label>
-        <label className="text-[11px] text-fg-muted">
-          Document
-          <select value={documentFilter} onChange={(e) => setDocumentFilter(e.target.value)} className="field mt-1">
-            <option value="">All indexed</option>
-            {indexed.map((d) => (
-              <option key={d.filename} value={d.filename}>{d.filename}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-[11px] text-fg-muted">
-          Compare A
-          <select value={compareA} onChange={(e) => setCompareA(e.target.value)} className="field mt-1">
-            <option value="">—</option>
-            {indexed.map((d) => <option key={d.filename} value={d.filename}>{d.filename}</option>)}
-          </select>
-        </label>
-        <label className="text-[11px] text-fg-muted">
-          Compare B
-          <select value={compareB} onChange={(e) => setCompareB(e.target.value)} className="field mt-1">
-            <option value="">—</option>
-            {indexed.map((d) => <option key={d.filename} value={d.filename}>{d.filename}</option>)}
-          </select>
-        </label>
-        <label className="text-[11px] text-fg-muted flex items-end gap-2 pb-2">
-          <input type="checkbox" checked={followUp} onChange={(e) => setFollowUp(e.target.checked)} />
-          Follow-up chat
-        </label>
-      </div>
-
-      <PipelineVisualizer
-        stage={pipelineStage}
-        providerLabel={providerLabel}
-        topK={topK}
-        sourceCount={sources.length}
-        statusMessage={statusMessage || error || ''}
-      />
-
-      {thread.length > 0 && followUp && (
-        <div className="text-[11px] text-fg-muted">Follow-up context: {thread.length} prior turn{thread.length === 1 ? '' : 's'} attached.</div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <AnswerCard
-            answer={answer}
-            executionTimeMs={executionTimeMs}
+    <div className="max-w-6xl mx-auto pb-12">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-5 items-start">
+        <div className="space-y-4 min-w-0">
+          <QuestionComposer
+            question={question}
+            setQuestion={setQuestion}
+            onAsk={() => handleAsk()}
+            onClear={handleClear}
             isLoading={isLoading}
-            statusMessage={statusMessage}
-            onRegenerate={() => handleAsk()}
-            error={error}
-            sources={sources}
-            activeSentence={activeSentence}
-            onTraceSentence={handleTrace}
-            onExport={answer ? handleExport : undefined}
-            onBookmark={answer ? handleBookmark : undefined}
+            canAsk={canAsk}
+            onDemo={() => handleAsk(DEMO_Q)}
           />
-        </div>
-        <div className="lg:col-span-1">
-          <ImageGallery images={images} />
-        </div>
-      </div>
 
-      {sources.length > 0 && (
-        <div className="panel p-5">
-          <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-line">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-500" />
-              <h3 className="font-semibold text-sm text-fg">Retrieved Source Context</h3>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
-                {sources.length} clauses
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowRefine((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-fg-muted hover:text-fg px-2.5 py-1 rounded-lg border border-line bg-surface-card"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Refine
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRefine ? 'rotate-180' : ''}`} />
+            </button>
+            {isLoading && (
+              <span className="text-[11px] font-mono text-blue-700 dark:text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-full px-2.5 py-1">
+                {stageLabel}
               </span>
+            )}
+          </div>
+
+          {showRefine && (
+            <div className="panel p-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+              <label className="text-[11px] text-fg-muted">
+                Answer style
+                <select value={answerMode} onChange={(e) => setAnswerMode(e.target.value as AnswerMode)} className="field mt-1">
+                  <option value="concise">Concise</option>
+                  <option value="quoted">Clause-quoted</option>
+                  <option value="checklist">Checklist</option>
+                </select>
+              </label>
+              <label className="text-[11px] text-fg-muted">
+                Limit to a family
+                <select value={family} onChange={(e) => setFamily(e.target.value)} className="field mt-1">
+                  <option value="">All standards</option>
+                  <option value="API">API</option>
+                  <option value="ASME">ASME</option>
+                  <option value="ISO">ISO</option>
+                  <option value="ASTM">ASTM</option>
+                </select>
+              </label>
+              <label className="text-[11px] text-fg-muted">
+                Year
+                <input value={year} onChange={(e) => setYear(e.target.value)} placeholder="Any year" className="field mt-1" />
+              </label>
+              <label className="text-[11px] text-fg-muted md:col-span-3">
+                One document
+                <select value={documentFilter} onChange={(e) => setDocumentFilter(e.target.value)} className="field mt-1">
+                  <option value="">All indexed</option>
+                  {indexed.map((d) => (
+                    <option key={d.filename} value={d.filename}>{d.filename}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] text-fg-muted">
+                Compare A
+                <select value={compareA} onChange={(e) => setCompareA(e.target.value)} className="field mt-1">
+                  <option value="">—</option>
+                  {indexed.map((d) => <option key={d.filename} value={d.filename}>{d.filename}</option>)}
+                </select>
+              </label>
+              <label className="text-[11px] text-fg-muted">
+                Compare B
+                <select value={compareB} onChange={(e) => setCompareB(e.target.value)} className="field mt-1">
+                  <option value="">—</option>
+                  {indexed.map((d) => <option key={d.filename} value={d.filename}>{d.filename}</option>)}
+                </select>
+              </label>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sources.map((src, idx) => (
-              <SourceCard
-                key={src.id || idx}
-                source={src}
-                index={idx}
-                onOpenDocument={(s) => setSelectedSourceForViewer(s)}
-                active={tracedId === src.id}
-                pulsed={pulsedId === src.id && tracedId !== src.id}
-                cardRef={(el) => { cardRefs.current[src.id] = el; }}
+          )}
+
+          {hasTurn && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <div className="chat-user max-w-[85%] text-white text-sm leading-relaxed px-4 py-3 rounded-2xl rounded-br-md">
+                  {asked}
+                </div>
+              </div>
+
+              {images.length > 0 && <ImageGallery images={images} />}
+
+              <AnswerCard
+                answer={answer}
+                executionTimeMs={executionTimeMs}
+                isLoading={isLoading}
+                statusMessage={statusMessage}
+                onRegenerate={() => handleAsk(asked)}
+                error={error}
+                sources={sources}
+                activeSentence={activeSentence}
+                onTraceSentence={handleTrace}
+                onExport={answer ? handleExport : undefined}
+                onBookmark={answer ? handleBookmark : undefined}
               />
-            ))}
-          </div>
+            </div>
+          )}
+
+          {sources.length > 0 && (
+            <div className="panel p-5">
+              <div className="flex items-center gap-2 pb-3.5 mb-4 border-b border-line">
+                <Layers className="w-4 h-4 text-blue-500" />
+                <h3 className="font-semibold text-sm text-fg">Retrieved clauses</h3>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                  {sources.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sources.map((src, idx) => (
+                  <SourceCard
+                    key={src.id || idx}
+                    source={src}
+                    index={idx}
+                    onOpenDocument={(s) => setSelectedSourceForViewer(s)}
+                    active={tracedId === src.id}
+                    pulsed={pulsedId === src.id && tracedId !== src.id}
+                    cardRef={(el) => { cardRefs.current[src.id] = el; }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        <aside className="lg:sticky lg:top-20 space-y-3">
+          <div className="panel p-4">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-fg">
+                <MessageCircle className="w-4 h-4 text-indigo-500" />
+                Follow-up
+              </div>
+              <button
+                type="button"
+                onClick={() => setFollowUp((v) => !v)}
+                className={`relative w-10 h-6 rounded-full transition-colors ${followUp ? 'bg-indigo-600' : 'bg-line'}`}
+                aria-pressed={followUp}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${followUp ? 'translate-x-4' : ''}`} />
+              </button>
+            </div>
+            <p className="text-[11px] text-fg-muted leading-relaxed">
+              {followUp
+                ? 'Your next question keeps this thread. SQA will remember the last few turns.'
+                : 'Each ask starts fresh, with no prior conversation attached.'}
+            </p>
+            {followUp && thread.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {thread.map((turn, i) => (
+                  <button
+                    key={`${turn.question}-${i}`}
+                    type="button"
+                    onClick={() => setQuestion(turn.question)}
+                    className="block w-full text-left text-[11px] px-2.5 py-2 rounded-lg bg-surface-muted border border-line text-fg hover:border-indigo-300"
+                  >
+                    <span className="block font-medium truncate">{turn.question}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
 
       <DocumentViewerModal
         source={selectedSourceForViewer}

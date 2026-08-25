@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Bot, Copy, Check, RefreshCw, Clock, Sparkles, AlertCircle, Download, BookmarkPlus } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, Copy, Check, RefreshCw, Clock, AlertCircle, Download, BookmarkPlus } from 'lucide-react';
 import { SourceContext } from '../../types';
 import { bestSourceForSentence, citationIndex, splitSentences } from '../../lib/citations';
 
@@ -31,7 +31,14 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
   onBookmark,
 }) => {
   const [copied, setCopied] = useState(false);
+  const streamRef = useRef<HTMLDivElement>(null);
   const sentences = useMemo(() => splitSentences(answer), [answer]);
+  const streaming = isLoading && !!answer;
+
+  useEffect(() => {
+    if (!streaming) return;
+    streamRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [answer, streaming]);
 
   const handleCopy = () => {
     if (!answer) return;
@@ -44,26 +51,26 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
     <div className="panel p-5 transition-all">
       <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-line">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-500/30">
             <Bot className="w-4 h-4" />
           </div>
           <div>
             <h3 className="font-semibold text-sm text-fg flex items-center gap-2">
-              Answer
+              SQA
               {isLoading && (
-                <span className="text-[10px] font-normal font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 animate-pulse">
-                  {statusMessage || 'Processing...'}
+                <span className="text-[10px] font-normal font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                  {streaming ? 'Typing…' : statusMessage || 'Thinking…'}
                 </span>
               )}
             </h3>
             <span className="text-[11px] text-fg-muted">
-              Click a sentence to trace its source clause
+              {streaming ? 'Streaming grounded answer' : answer ? 'Click a sentence to trace its clause' : 'Answers appear here as they are written'}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {executionTimeMs !== undefined && executionTimeMs > 0 && (
+          {executionTimeMs !== undefined && executionTimeMs > 0 && !isLoading && (
             <div className="telemetry-pill bg-surface-muted border-line text-fg-muted">
               <Clock className="w-3 h-3 text-fg-muted" />
               <span>{executionTimeMs} ms</span>
@@ -108,14 +115,21 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
           </div>
         </div>
       ) : isLoading && !answer ? (
-        <div className="py-10 flex flex-col items-center justify-center text-center space-y-3">
-          <div className="w-10 h-10 rounded-full border-2 border-blue-500/20 border-t-blue-500 animate-spin flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-blue-500" />
+        <div className="py-8 flex items-center gap-3 text-sm text-fg">
+          <div className="flex items-center gap-1.5 px-1">
+            <span className="think-dot" />
+            <span className="think-dot" />
+            <span className="think-dot" />
           </div>
-          <div className="text-sm text-fg font-medium">{statusMessage || 'Searching knowledge base...'}</div>
+          <span className="text-fg-muted">{statusMessage || 'Searching the knowledge base…'}</span>
+        </div>
+      ) : streaming ? (
+        <div ref={streamRef} className="stream-body text-sm leading-7 text-fg">
+          {answer}
+          <span className="type-caret" aria-hidden />
         </div>
       ) : answer ? (
-        <div className="prose-answer space-y-2">
+        <div className="prose-answer space-y-1.5">
           {sentences.map((sentence, idx) => (
             <button
               key={idx}
@@ -133,11 +147,7 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
             </button>
           ))}
         </div>
-      ) : (
-        <div className="py-8 text-center text-fg-muted text-sm">
-          No answer yet. Ask a question or run the demo query to watch the pipeline.
-        </div>
-      )}
+      ) : null}
     </div>
   );
 };
