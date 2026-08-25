@@ -240,91 +240,119 @@
   @apply w-full text-left p-3 rounded-xl border border-line bg-surface-input;
 }
 
-.credit-developer {
-  font-weight: 800;
-  font-style: italic;
-  letter-spacing: 0.02em;
-  background-image: linear-gradient(
-    115deg,
-    #0f766e 0%,
-    #7c3aed 35%,
-    #0891b2 65%,
-    #4f46e5 100%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: signature-ink 5.5s ease-in-out infinite;
+.company-mark {
   position: relative;
   display: inline-block;
-  padding-bottom: 2px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+  padding: 1px 2px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: default;
 }
 
-.dark .credit-developer {
-  background-image: linear-gradient(
-    115deg,
-    #5eead4 0%,
-    #c4b5fd 40%,
-    #67e8f9 70%,
-    #a5b4fc 100%
+.dark .company-mark {
+  color: #e2e8f0;
+}
+
+.company-mark::before {
+  content: '';
+  position: absolute;
+  inset: -2px -8px;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(212, 175, 55, 0.35) 52%,
+    transparent 70%
   );
+  transform: translateX(-120%);
+  pointer-events: none;
 }
 
-.credit-developer::after {
+.company-mark.is-lit::before {
+  transform: translateX(calc(var(--sheen-x, 50%) - 20%));
+  transition: transform 80ms linear;
+}
+
+.company-mark::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, #0d9488, #7c3aed, #0891b2);
-  background-size: 200% 100%;
-  animation: signature-stroke 5.5s ease-in-out infinite;
-  opacity: 0.85;
-}
-
-@keyframes signature-ink {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes signature-stroke {
-  0%, 100% { background-position: 0% 50%; opacity: 0.55; transform: scaleX(0.92); }
-  50% { background-position: 100% 50%; opacity: 1; transform: scaleX(1); }
-}
-
-.credit-company {
-  font-weight: 700;
-  color: #1d4ed8;
-  background-image: linear-gradient(90deg, #1d4ed8, #38bdf8, #1d4ed8);
-  background-size: 180% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: company-shimmer 4.5s linear infinite;
-  position: relative;
-}
-
-.dark .credit-company {
-  background-image: linear-gradient(90deg, #93c5fd, #38bdf8, #818cf8, #93c5fd);
-}
-
-.credit-company::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -2px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #38bdf8, transparent);
-  opacity: 0.8;
+  background: #0f172a;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes company-shimmer {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 180% 50%; }
+.dark .company-mark::after {
+  background: #f8fafc;
+}
+
+.company-mark.is-lit::after {
+  transform: scaleX(1);
+}
+
+.dev-mark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  padding: 2px 10px 3px 1px;
+  overflow: visible;
+  cursor: default;
+  vertical-align: baseline;
+}
+
+.dev-letter {
+  display: inline-block;
+  font-weight: 800;
+  font-style: normal;
+  color: #111827;
+  transform: translateY(0);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), color 220ms ease, text-shadow 220ms ease;
+}
+
+.dark .dev-letter {
+  color: #f1f5f9;
+}
+
+.dev-mark.is-active .dev-letter {
+  animation: letter-wake 700ms ease both;
+}
+
+.dev-letter.is-hot {
+  color: #c2410c !important;
+  transform: translateY(-3px) scale(1.18);
+  text-shadow: 0 8px 16px rgba(194, 65, 12, 0.28);
+}
+
+.dark .dev-letter.is-hot {
+  color: #fb923c !important;
+  text-shadow: 0 0 16px rgba(251, 146, 60, 0.55);
+}
+
+.dev-spark {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 0.7em;
+  color: #ea580c;
+  opacity: 0;
+  transform: scale(0.4) rotate(-20deg);
+  transition: opacity 240ms ease, transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dev-spark.is-on {
+  opacity: 1;
+  transform: scale(1) rotate(12deg);
+}
+
+@keyframes letter-wake {
+  from { transform: translateY(4px); opacity: 0.35; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
