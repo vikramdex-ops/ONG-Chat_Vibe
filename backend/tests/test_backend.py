@@ -87,6 +87,20 @@ def test_resolve_images():
     assert images[0].url == "/api/images/api650_p42_img0.png"
 
 
+def test_request_scoped_gemini_key():
+    from app.core.request_context import set_request_llm, reset_request_llm
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.gemini_llm import GeminiLLMProvider
+
+    tokens = set_request_llm("user-browser-key", "gemini-2.5-flash", "gemini")
+    try:
+        provider = get_llm_provider()
+        assert isinstance(provider, GeminiLLMProvider)
+        assert provider.api_key == "user-browser-key"
+    finally:
+        reset_request_llm(tokens)
+
+
 def test_choose_embedding_backend_onnx(monkeypatch):
     from app.services.embeddings import choose_embedding_backend
 

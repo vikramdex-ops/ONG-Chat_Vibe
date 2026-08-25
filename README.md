@@ -61,7 +61,7 @@ See **[DEPLOY.md](DEPLOY.md)** for the click-by-click path.
 
 - **Vercel Hobby** hosts the Vite frontend.
 - **Render free Web Service** (native Python, no Docker) hosts FastAPI + Chroma + ONNX MiniLM so it fits 512 MB.
-- **Google Gemini** is the free LLM. Set `GEMINI_API_KEY` on Render, and `VITE_API_BASE=https://<service>.onrender.com/api` on Vercel.
+- **Google Gemini** is the free LLM. Each visitor pastes their own key in Settings (stored in the browser, not on Render). Set `VITE_API_BASE=https://<service>.onrender.com/api` on Vercel.
 - Do not put Chroma or uploads on Vercel serverless. Do not proxy SSE/uploads through Vercel.
 
 Desktop `.exe`: `npm run build` then package `run_app.py` so FastAPI serves `frontend/dist`.

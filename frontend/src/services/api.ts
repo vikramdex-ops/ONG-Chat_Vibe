@@ -12,9 +12,14 @@ import {
   SourceContext
 } from '../types';
 import { API_BASE } from '../lib/apiBase';
+import { userLlmHeaders } from '../lib/userLlm';
+
+function jsonHeaders(): Record<string, string> {
+  return userLlmHeaders({ 'Content-Type': 'application/json' });
+}
 
 export async function getHealth(): Promise<HealthStatus> {
-  const res = await fetch(`${API_BASE}/health`);
+  const res = await fetch(`${API_BASE}/health`, { headers: userLlmHeaders() });
   if (!res.ok) throw new Error('Failed to fetch health status');
   return res.json();
 }
@@ -34,7 +39,7 @@ export async function getSettings(): Promise<AppSettings> {
 export async function updateSettings(settings: AppSettings): Promise<AppSettings> {
   const res = await fetch(`${API_BASE}/settings`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(),
     body: JSON.stringify(settings)
   });
   if (!res.ok) {
@@ -52,7 +57,7 @@ export async function testLLM(
 ): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${API_BASE}/settings/test-llm`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(),
     body: JSON.stringify({ url, provider, api_key: apiKey, model })
   });
   return res.json();
@@ -61,7 +66,7 @@ export async function testLLM(
 export async function executeQuery(question: string, topK?: number, extras: Partial<QueryRequest> = {}): Promise<QueryResponse> {
   const res = await fetch(`${API_BASE}/query`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(),
     body: JSON.stringify({ question, top_k: topK, ...extras })
   });
   if (!res.ok) {
@@ -87,7 +92,7 @@ export function streamQuery(
 
   fetch(`${API_BASE}/query/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(),
     body: JSON.stringify({ question, top_k: topK, ...extras }),
     signal: controller.signal
   })

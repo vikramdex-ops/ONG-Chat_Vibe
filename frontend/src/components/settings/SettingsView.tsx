@@ -18,6 +18,7 @@ import {
 import { AppSettings, HealthStatus } from '../../types';
 import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
+import { loadUserLlm, saveUserLlm } from '../../lib/userLlm';
 
 interface SettingsViewProps {
   health: HealthStatus | null;
@@ -69,8 +70,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
   const [kbBusy, setKbBusy] = useState(false);
 
   useEffect(() => {
+    const local = loadUserLlm();
     getSettings()
-      .then((s) => setFormData(s))
+      .then((s) => setFormData({
+        ...s,
+        llm_provider: local.provider || s.llm_provider,
+        llm_model_name: local.model || s.llm_model_name,
+        gemini_model_name: local.model || s.gemini_model_name,
+        llm_api_key: local.apiKey || s.llm_api_key || '',
+        gemini_api_key: local.apiKey || s.gemini_api_key || '',
+      }))
       .catch((err) => console.error('Failed to load settings:', err));
   }, []);
 
@@ -94,6 +103,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
   const handleTestConnection = async () => {
     setIsTesting(true);
     setTestResult(null);
+    saveUserLlm({
+      apiKey: formData.llm_api_key || formData.gemini_api_key || '',
+      model: formData.llm_model_name,
+      provider: formData.llm_provider,
+    });
     try {
       const res = await testLLM(
         formData.llm_server_url,
@@ -116,10 +130,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
     setSaveSuccess(false);
     setErrorMessage(null);
     try {
-      const updated = await updateSettings(formData);
-      setFormData(updated);
+      saveUserLlm({
+        apiKey: formData.llm_api_key || formData.gemini_api_key || '',
+        model: formData.llm_model_name,
+        provider: formData.llm_provider,
+      });
+      const updated = await updateSettings({
+        ...formData,
+        llm_api_key: '',
+        gemini_api_key: '',
+      });
+      setFormData({
+        ...updated,
+        llm_api_key: formData.llm_api_key,
+        gemini_api_key: formData.gemini_api_key,
+      });
       setSaveSuccess(true);
-      if (onSettingsSaved) onSettingsSaved(updated);
+      if (onSettingsSaved) onSettingsSaved({
+        ...updated,
+        llm_api_key: formData.llm_api_key,
+        gemini_api_key: formData.gemini_api_key,
+      });
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to update settings');
@@ -395,7 +426,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           {isGemini && (
             <>
               <p className="text-[11px] text-fg-muted">
-                Sign in with Google at AI Studio, paste your key, pick a model, then click Test. Status turns connected when the key is valid.
+                Sign in with Google at AI Studio, paste your own free key, pick a model, then click Test. The key is never stored on the server.
               </p>
               <button type="button" onClick={() => {
                 setFlipPro((v) => !v);

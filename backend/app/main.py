@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from app.core.config import IMAGES_DIR, BASE_DIR, settings, cors_allow_origins
 from app.core.logging_service import app_logger
+from app.core.request_context import set_request_llm, reset_request_llm
 from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace
 from app.services.image_resolver import resolve_image_file
 
@@ -26,6 +27,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def attach_user_llm(request, call_next):
+    """Each browser sends its own Gemini key. Never require a shared server key."""
+    tokens = set_request_llm(
+        request.headers.get("x-gemini-api-key") or request.headers.get("x-llm-api-key"),
+        request.headers.get("x-llm-model"),
+        request.headers.get("x-llm-provider"),
+    )
+    try:
+        return await call_next(request)
+    finally:
+        reset_request_llm(tokens)
 
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 

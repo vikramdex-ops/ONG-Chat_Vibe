@@ -87,28 +87,33 @@ class SettingsManager:
 
     def load_settings(self) -> AppSettings:
         loaded: Optional[AppSettings] = None
+        persisted = False
         if self.settings_path.exists():
             try:
                 with open(self.settings_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     loaded = AppSettings(**data)
+                    persisted = True
             except Exception as e:
                 print(f"[Config] Error loading settings, falling back to defaults: {e}")
-        return self._apply_env_overrides(loaded or AppSettings())
+        return self._apply_env_overrides(loaded or AppSettings(), persisted=persisted)
 
     @staticmethod
-    def _apply_env_overrides(current: AppSettings) -> AppSettings:
-        """Seed Gemini and worker count from the host environment without requiring Settings UI."""
-        key = (os.getenv("GEMINI_API_KEY") or os.getenv("SQA_GEMINI_API_KEY") or "").strip()
-        if key and not (current.gemini_api_key or current.llm_api_key):
-            current.llm_provider = "gemini"
-            current.gemini_api_key = key
-            current.llm_api_key = key
-            current.llm_server_url = GEMINI_API_BASE
-            if not current.llm_model_name or current.llm_model_name == "default":
-                current.llm_model_name = "gemini-2.5-flash"
-            if not current.gemini_model_name:
-                current.gemini_model_name = current.llm_model_name
+    def store_llm_keys() -> bool:
+        return (os.getenv("SQA_STORE_LLM_KEYS") or "1").strip() != "0"
+
+    @staticmethod
+    def _apply_env_overrides(current: AppSettings, persisted: bool = False) -> AppSettings:
+        """Host env can pick a default provider. User Gemini keys stay in the browser."""
+        default_provider = (os.getenv("SQA_DEFAULT_PROVIDER") or "").strip().lower()
+        if default_provider and not persisted:
+            current.llm_provider = default_provider
+            if default_provider == "gemini":
+                current.llm_server_url = GEMINI_API_BASE
+                if not current.llm_model_name or current.llm_model_name == "default":
+                    current.llm_model_name = "gemini-2.5-flash"
+                if not current.gemini_model_name:
+                    current.gemini_model_name = current.llm_model_name
         workers = (os.getenv("SQA_WORKER_COUNT") or "").strip()
         if workers:
             try:
@@ -159,6 +164,10 @@ class SettingsManager:
             raise ValueError("Chunk size must be between 100 and 5000 words")
         if new_settings.chunk_overlap < 0 or new_settings.chunk_overlap >= new_settings.chunk_size:
             raise ValueError("Chunk overlap must be non-negative and smaller than chunk size")
+
+        if not self.store_llm_keys():
+            new_settings.llm_api_key = None
+            new_settings.gemini_api_key = None
 
         self._settings = new_settings
         with open(self.settings_path, "w", encoding="utf-8") as f:

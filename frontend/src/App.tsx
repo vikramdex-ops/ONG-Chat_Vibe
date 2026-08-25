@@ -9,7 +9,7 @@ import { HistoryView } from './components/history/HistoryView';
 import { SettingsView } from './components/settings/SettingsView';
 import { AboutView } from './components/about/AboutView';
 import { TabType, HealthStatus, AppSettings, ImageResult, SourceContext } from './types';
-import { getHealth, getSettings, getDocuments } from './services/api';
+import { getHealth, getSettings, getDocuments, getLive } from './services/api';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('ask');
@@ -42,7 +42,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     refreshGlobalState();
     const interval = setInterval(refreshGlobalState, 10000);
-    return () => clearInterval(interval);
+    const heartbeat = window.setInterval(() => {
+      getLive().catch(() => undefined);
+    }, 4 * 60 * 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(heartbeat);
+    };
   }, []);
 
   useEffect(() => {

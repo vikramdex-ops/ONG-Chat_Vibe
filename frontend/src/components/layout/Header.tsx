@@ -14,6 +14,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ health, setActiveTab, topK }) => {
   const { theme, toggleTheme } = useTheme();
   const isLlmConnected = health?.llm_server === 'connected';
+  const needsKey = health?.llm_server === 'needs_key';
 
   return (
     <header className="h-16 border-b border-line bg-surface-card/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
@@ -54,25 +55,29 @@ export const Header: React.FC<HeaderProps> = ({ health, setActiveTab, topK }) =>
           className={`telemetry-pill cursor-pointer transition-all ${
             isLlmConnected
               ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-400/50 text-emerald-700 dark:text-emerald-300 shadow-sm shadow-emerald-500/10'
+              : needsKey
+              ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-400/50 text-amber-800 dark:text-amber-200'
               : 'bg-rose-50 dark:bg-rose-950/60 border-rose-400/50 text-rose-700 dark:text-rose-300'
           }`}
           onClick={() => setActiveTab('settings')}
-          title="Click to configure LLM settings"
+          title="Click to add your own free Gemini key"
         >
-          <Bot className={`w-3.5 h-3.5 ${isLlmConnected ? 'text-emerald-500' : 'text-rose-500'}`} />
+          <Bot className={`w-3.5 h-3.5 ${isLlmConnected ? 'text-emerald-500' : needsKey ? 'text-amber-500' : 'text-rose-500'}`} />
           <span className="w-2 h-2 rounded-full relative flex items-center justify-center">
             <span
               className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                isLlmConnected ? 'bg-emerald-400' : 'bg-rose-400'
+                isLlmConnected ? 'bg-emerald-400' : needsKey ? 'bg-amber-400' : 'bg-rose-400'
               }`}
             ></span>
             <span
               className={`relative inline-flex rounded-full h-2 w-2 ${
-                isLlmConnected ? 'bg-emerald-500' : 'bg-rose-500'
+                isLlmConnected ? 'bg-emerald-500' : needsKey ? 'bg-amber-500' : 'bg-rose-500'
               }`}
             ></span>
           </span>
-          <span className="font-semibold">{isLlmConnected ? 'LLM Connected' : 'LLM Disconnected'}</span>
+          <span className="font-semibold">
+            {isLlmConnected ? 'LLM Connected' : needsKey ? 'Add your Gemini key' : 'LLM Disconnected'}
+          </span>
         </div>
 
         <button

@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.services.vector_db import vector_db_service
 from app.services.embeddings import embedding_service
 from app.services.llm.factory import get_llm_provider
+from app.core.request_context import request_api_key
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
 

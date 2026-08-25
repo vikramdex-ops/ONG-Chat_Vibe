@@ -13,9 +13,11 @@ services:
         value: onnx
       - key: SQA_WORKER_COUNT
         value: "1"
+      - key: SQA_DEFAULT_PROVIDER
+        value: gemini
+      - key: SQA_STORE_LLM_KEYS
+        value: "0"
       - key: CORS_ORIGINS
-        sync: false
-      - key: GEMINI_API_KEY
         sync: false
       - key: PUBLIC_API_URL
         sync: false

@@ -16,9 +16,17 @@ class TestLLMRequest(BaseModel):
     model: Optional[str] = None
 
 
+def _public_settings(current: AppSettings) -> AppSettings:
+    data = current.model_copy(deep=True)
+    if not settings_manager.store_llm_keys():
+        data.llm_api_key = None
+        data.gemini_api_key = None
+    return data
+
+
 @router.get("", response_model=AppSettings)
 async def get_settings():
-    return settings_manager.current
+    return _public_settings(settings_manager.current)
 
 
 @router.put("", response_model=AppSettings)
@@ -26,7 +34,7 @@ async def update_settings(new_settings: AppSettings):
     try:
         updated = settings_manager.save_settings(new_settings)
         app_logger.success("Settings", "Application configuration updated successfully.")
-        return updated
+        return _public_settings(updated)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

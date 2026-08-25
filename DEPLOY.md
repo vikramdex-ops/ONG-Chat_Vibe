@@ -6,22 +6,17 @@ The UI is a static Vite app. ChromaDB, uploads, and SSE streaming need an always
 | --- | --- | --- |
 | Frontend | [Vercel Hobby](https://vercel.com) | Static React, custom domain, HTTPS |
 | API + Chroma | [Render](https://dashboard.render.com) **Web Service** (free) | Native Python, no Docker. Uses ONNX MiniLM so it fits 512 MB. |
-| LLM | [Google Gemini](https://aistudio.google.com/app/apikey) | Free API key |
+| LLM | Each visitor's own [Google Gemini](https://aistudio.google.com/app/apikey) key | Quotas stay per user. The host never holds a shared key. |
 
-Do **not** proxy `/api` through Vercel. Query streaming and PDF uploads would hit Hobby timeouts. The frontend calls the API origin directly via `VITE_API_BASE`.
+Do **not** proxy `/api` through Vercel. Query streaming and PDF uploads would hit Hobby timeouts.
 
 Production branch: `arena/01a037ca-ong-chat-vibe`.
-
-Hugging Face free Spaces cannot run Docker — skip HF.
 
 ---
 
 ## 1. Live API — Render Web Service
 
 On [dashboard.render.com](https://dashboard.render.com) → **New** → **Web Service** (not Static Site).
-
-1. Connect GitHub repo `vikramdex-ops/ONG-Chat_Vibe`.
-2. Fill the form:
 
 | Field | Value |
 | --- | --- |
@@ -33,42 +28,46 @@ On [dashboard.render.com](https://dashboard.render.com) → **New** → **Web Se
 | Start Command | `PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | Instance type | **Free** |
 
-3. Environment variables:
+Environment variables — **do not add `GEMINI_API_KEY`**:
 
 | Key | Value |
 | --- | --- |
 | `PYTHON_VERSION` | `3.11.9` |
 | `SQA_EMBEDDING_BACKEND` | `onnx` |
 | `SQA_WORKER_COUNT` | `1` |
-| `GEMINI_API_KEY` | your [AI Studio](https://aistudio.google.com/app/apikey) key |
-| `CORS_ORIGINS` | `*` until Vercel exists, then your `https://….vercel.app` |
-| `PUBLIC_API_URL` | `https://sqa-og-api.onrender.com` (use the URL Render shows) |
+| `SQA_DEFAULT_PROVIDER` | `gemini` |
+| `SQA_STORE_LLM_KEYS` | `0` |
+| `CORS_ORIGINS` | `*` until Vercel exists, then `https://….vercel.app` |
+| `PUBLIC_API_URL` | `https://<service>.onrender.com` |
 
-4. Create Web Service. First build takes several minutes (ONNX MiniLM download).
-5. Confirm `https://<service>.onrender.com/api/health/live` returns `{"status":"ok",...}`.
+Create the service. Confirm `https://<service>.onrender.com/api/health/live` returns `{"status":"ok",...}`.
 
-Render free sleeps after ~15 minutes idle. The first request after sleep can take up to a minute — the web app shows a wake banner.
-
-Disk is ephemeral on free. Export a KB zip from Settings before a rebuild.
-
-Do **not** pick Docker / Static Site / Private Service / Postgres for this API.
+Each visitor opens Settings → **Get Free API Key** → pastes their own key. It stays in that browser and is sent only with their questions.
 
 ---
 
-## 2. Frontend — Vercel
+## 2. Keep the free instance from sleeping
 
-1. Open [vercel.com/new](https://vercel.com/new) and import `vikramdex-ops/ONG-Chat_Vibe`.
-2. **Production Branch:** `arena/01a037ca-ong-chat-vibe`.
-3. Leave Root Directory empty — `vercel.json` at the repo root builds `frontend/`.
-4. Environment variable (Production + Preview):
+Render free **will** spin down after ~15 minutes with no traffic. That warning is expected. We keep it warm in three free layers:
 
-| Name | Value |
-| --- | --- |
-| `VITE_API_BASE` | `https://<service>.onrender.com/api` |
+1. **GitHub Action** `.github/workflows/keep-awake.yml` pings `/api/health/live` every 10 minutes.
+   - After the service URL exists: GitHub repo → Settings → Secrets → Actions → New secret
+   - Name: `RENDER_HEALTH_URL`
+   - Value: `https://<service>.onrender.com/api/health/live`
+2. **UptimeRobot** (recommended, more reliable than GitHub cron): free monitor, 5 minute interval, same health URL.
+3. **Open browser tab**: the app heartbeats `/api/health/live` every 4 minutes while someone is using it.
 
-No trailing slash. Rebuild after changing this — Vite inlines it at build time.
+If a ping is missed, the first visitor sees the amber wake banner for up to a minute. That is the free-tier tradeoff — persistent disks and no-sleep need a paid Render plan.
 
-5. Deploy. Open the Vercel URL → Settings → Test Gemini if the Render env did not seed the key.
+---
+
+## 3. Frontend — Vercel
+
+1. [vercel.com/new](https://vercel.com/new) → import `vikramdex-ops/ONG-Chat_Vibe`.
+2. Production Branch: `arena/01a037ca-ong-chat-vibe`.
+3. Leave Root Directory empty.
+4. Env (Production + Preview): `VITE_API_BASE=https://<service>.onrender.com/api` (no trailing slash).
+5. Deploy. Visitors add their own Gemini key in Settings.
 
 ---
 
@@ -76,8 +75,5 @@ No trailing slash. Rebuild after changing this — Vite inlines it at build time
 
 ```bash
 python run_app.py --no-browser
-# curl http://127.0.0.1:8001/api/health/live
 cd frontend && npm run dev
 ```
-
-Desktop `.exe` is unchanged: `npm run build` then package `run_app.py` so FastAPI serves `frontend/dist`.
