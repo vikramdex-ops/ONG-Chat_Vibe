@@ -13,7 +13,8 @@ import {
   Palette,
   Archive,
   Download,
-  Upload
+  Upload,
+  MonitorDown
 } from 'lucide-react';
 import { AppSettings, HealthStatus } from '../../types';
 import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack } from '../../services/api';
@@ -175,6 +176,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
         </p>
       </div>
 
+      <div className="panel p-6 space-y-3 border-2 border-indigo-400/50">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <h4 className="font-bold text-sm text-fg flex items-center gap-2">
+            <MonitorDown className="w-4 h-4 text-indigo-500" />
+            Windows desktop app
+          </h4>
+          <span className="text-[11px] font-mono text-fg-muted">GitHub Releases</span>
+        </div>
+        <p className="text-xs text-fg-muted">
+          {(health?.details?.persistence === 'ephemeral')
+            ? 'This cloud disk is empty after every restart. The .exe keeps Chroma in %LOCALAPPDATA%\\SQA-OG so large libraries survive.'
+            : 'Each push rebuilds SQA-OG-windows.zip. Unzip, run SQA-OG.exe, knowledge base stays in your user folder.'}
+        </p>
+        <a
+          href={health?.details?.desktop_releases_url || 'https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest'}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download latest .exe zip
+        </a>
+      </div>
+
       <div className="panel p-6 space-y-4 border-2 border-emerald-400/60">
         <div className="flex items-center justify-between pb-3 border-b border-line">
           <h4 className="font-bold text-sm text-fg flex items-center gap-2">
@@ -184,7 +209,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           <span className="text-[11px] font-mono text-fg-muted">chroma_db + images</span>
         </div>
         <p className="text-xs text-fg-muted">
-          Export a zip of the vector store and extracted figures, or import a pack from another computer.
+          Export a zip of the vector store and extracted figures after a big index, or import a pack onto the desktop app. This is the only way to carry chunks off a cloud host.
         </p>
         <div className="flex flex-wrap gap-2">
           <a

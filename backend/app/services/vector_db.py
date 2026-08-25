@@ -105,6 +105,36 @@ class VectorDBService:
         except Exception as exc:
             app_logger.warning("VectorDB", f"Could not append chunk snapshot: {exc}")
 
+    def close(self) -> None:
+        """Drop the client so the on-disk folder can be replaced (KB import / remount)."""
+        with self._init_lock:
+            self._collection = None
+            self._client = None
+
+    def remount(self, path: Optional[str] = None) -> None:
+        with self._init_lock:
+            self._collection = None
+            self._client = None
+            if path:
+                self._db_path = path
+
+    def indexed_pages(self, filename: str) -> Set[int]:
+        """Pages already written for this source file — used to resume a killed index job."""
+        try:
+            coll = self.get_collection()
+            results = coll.get(where={"source": filename}, include=["metadatas"])
+            pages: Set[int] = set()
+            for meta in results.get("metadatas") or []:
+                if meta and meta.get("page") is not None:
+                    try:
+                        pages.add(int(meta["page"]))
+                    except (TypeError, ValueError):
+                        continue
+            return pages
+        except Exception as e:
+            app_logger.warning("VectorDB", f"Could not list indexed pages for '{filename}': {e}")
+            return set()
+
     def count(self) -> int:
         """Return total indexed chunks in the collection."""
         try:

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Cpu, Database, Server, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Cpu, Database, Server, CheckCircle2, MonitorDown } from 'lucide-react';
 import { AppLogo, CompanyName, DeveloperName } from '../brand/AppLogo';
 import { TiltCard } from '../ui/TiltCard';
 
@@ -84,7 +84,7 @@ export const AboutView: React.FC = () => {
 
           <div className="flex items-start gap-2.5 bg-surface-input p-3 rounded-xl border border-line">
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span><strong className="text-fg">Resumable Indexing:</strong> Process tracking preventing redundant re-indexing of already vectorized engineering standards.</span>
+            <span><strong className="text-fg">Page-level resume:</strong> Each PDF page is written as soon as it is embedded. A stop at page 180 keeps those 180 pages.</span>
           </div>
 
           <div className="flex items-start gap-2.5 bg-surface-input p-3 rounded-xl border border-line">
@@ -92,6 +92,24 @@ export const AboutView: React.FC = () => {
             <span><strong className="text-fg">Light &amp; Dark Mode:</strong> Default light theme with a one-click toggle that persists in your browser.</span>
           </div>
         </div>
+      </div>
+
+      <div className="panel p-6 space-y-3">
+        <h4 className="font-bold text-sm text-fg flex items-center gap-2">
+          <MonitorDown className="w-4 h-4 text-indigo-500" />
+          Desktop app for a real knowledge base
+        </h4>
+        <p className="text-xs text-fg-muted leading-relaxed">
+          The Vercel + Render site is a live demo. Render free wipes Chroma on every sleep and redeploy — that is a host limit, not a bug. The Windows build from GitHub Releases stores the library in <code className="text-indigo-600 dark:text-indigo-300">%LOCALAPPDATA%\SQA-OG</code> and is the path for hundreds of PDFs.
+        </p>
+        <a
+          href="https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline"
+        >
+          GitHub Releases → SQA-OG-windows.zip
+        </a>
       </div>
     </div>
   );

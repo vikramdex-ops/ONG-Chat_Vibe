@@ -89,6 +89,7 @@ export interface IndexStatus {
   total_chunks_indexed: number;
   error?: string | null;
   current_page?: number | null;
+  total_pages?: number | null;
   worker_stage?: string | null;
   filmstrip_url?: string | null;
   file_queue?: FileQueueItem[];

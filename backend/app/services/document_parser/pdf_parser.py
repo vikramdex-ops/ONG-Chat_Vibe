@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Set, Iterable
 import fitz  # PyMuPDF
 import numpy as np
 from app.core.config import IMAGES_DIR, settings
@@ -72,6 +72,7 @@ def parse_pdf_document(
     file_path: Path,
     should_stop: Optional[Callable[[], bool]] = None,
     on_page: Optional[Callable[[int, int], None]] = None,
+    skip_pages: Optional[Iterable[int]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Build per-page text for chunking:
@@ -93,12 +94,22 @@ def parse_pdf_document(
             document=file_path.name,
         )
 
+        already: Set[int] = {int(p) for p in (skip_pages or [])}
+        if already:
+            app_logger.info(
+                "PDFParser",
+                f"Resuming '{file_path.name}' — skipping {len(already)} pages already in the store.",
+                document=file_path.name,
+            )
+
         for page_num in range(total_pages):
             if should_stop and should_stop():
                 doc.close()
                 raise IndexingCancelled(f"Stopped while reading {file_path.name} at page {page_num + 1}")
             if on_page:
                 on_page(page_num + 1, total_pages)
+            if (page_num + 1) in already:
+                continue
 
             page = doc[page_num]
             page_text = _native_page_text(page)

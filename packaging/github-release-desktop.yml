@@ -1,0 +1,95 @@
+# Fallback copy of .github/workflows/release-desktop.yml
+# If git cannot push workflow files (missing `workflows` permission), paste this
+# once in GitHub → Actions → New workflow → Edit → replace contents → Commit.
+
+name: Desktop Release
+
+on:
+  push:
+    branches:
+      - arena/01a037ca-ong-chat-vibe
+    tags:
+      - "v*"
+    paths-ignore:
+      - "**.md"
+      - "frontend/src/**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Build Windows .exe
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build UI
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install desktop deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-desktop.txt pyinstaller
+
+      - name: Package SQA-OG.exe
+        run: python -m PyInstaller packaging/sqa-og.spec --noconfirm --clean --distpath dist-desktop
+
+      - name: Zip portable app
+        shell: pwsh
+        run: |
+          Copy-Item packaging/Launch-SQA-OG.bat dist-desktop/SQA-OG/Launch-SQA-OG.bat -Force
+          Copy-Item DESKTOP.md dist-desktop/SQA-OG/README.txt -Force
+          if (Test-Path SQA-OG-windows.zip) { Remove-Item SQA-OG-windows.zip -Force }
+          Compress-Archive -Path dist-desktop/SQA-OG/* -DestinationPath SQA-OG-windows.zip
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SQA-OG-windows
+          path: SQA-OG-windows.zip
+          if-no-files-found: error
+
+      - name: Publish rolling GitHub Release
+        if: github.ref == 'refs/heads/arena/01a037ca-ong-chat-vibe' || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'desktop-latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && format('SQA-O&G {0}', github.ref_name) || 'SQA-O&G Desktop (latest)' }}
+          files: SQA-OG-windows.zip
+          generate_release_notes: true
+          make_latest: true
+          body: |
+            Portable Windows app for a durable Oil & Gas knowledge base.
+
+            1. Download SQA-OG-windows.zip
+            2. Unzip anywhere
+            3. Run SQA-OG.exe (or Launch-SQA-OG.bat)
+            4. Browser opens at http://127.0.0.1:8001
+            5. Add your own Gemini key in Settings
+
+            The knowledge base is stored in %LOCALAPPDATA%\SQA-OG and survives app updates.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

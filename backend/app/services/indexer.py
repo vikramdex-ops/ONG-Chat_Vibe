@@ -195,6 +195,28 @@ class IndexingService:
             unique_paths[str(p.resolve())] = p
         return list(unique_paths.values())
 
+    def _chunks_from_page(self, file_name: str, page_data: Dict[str, Any], chunk_size: int, chunk_overlap: int) -> List[Dict[str, Any]]:
+        page_num = page_data["page"]
+        page_text = page_data["text"]
+        img_paths = page_data["image_paths"]
+        page_chunks = simple_chunker(page_text, chunk_size, chunk_overlap)
+        if not page_chunks and img_paths:
+            page_chunks = [f"Images present on page/slide {page_num}."]
+        chunks = []
+        std = parse_standard_meta(file_name)
+        for i, chunk_text in enumerate(page_chunks):
+            cid = generate_chunk_id(file_name, page_num, i)
+            meta = {
+                "source": file_name,
+                "page": int(page_num),
+                "chunk_in_page": int(i + 1),
+                "image_paths_str": "|".join(to_portable_image_refs(img_paths)),
+                "family": std.get("family") or "",
+                "year": std.get("year") or "",
+            }
+            chunks.append({"id": cid, "text": chunk_text, "metadata": meta})
+        return chunks
+
     def _process_single_file(
         self,
         file_path: Path,
@@ -202,20 +224,23 @@ class IndexingService:
         chunk_overlap: int,
         job_id: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Extract pages and create text chunks for a single file."""
+        """Extract pages and create text chunks for a single (non-PDF) file."""
         ext = file_path.suffix.lower()
         file_name = file_path.name
 
         def on_page(page: int, total: int) -> None:
             with self._status_lock:
                 self._status.current_page = page
+                self._status.total_pages = total
                 self._status.current_operation = f"Reading {file_name} · page {page}/{total}"
 
         if ext == ".pdf":
+            already = vector_db_service.indexed_pages(file_name)
             pages_data = parse_pdf_document(
                 file_path,
                 should_stop=lambda: self._should_stop(job_id),
                 on_page=on_page,
+                skip_pages=already,
             )
         elif ext == ".pptx":
             pages_data = parse_pptx_document(file_path)
@@ -225,34 +250,62 @@ class IndexingService:
             app_logger.warning("Indexer", f"Skipping unsupported file type: {file_name}")
             return []
 
-        chunks = []
+        chunks: List[Dict[str, Any]] = []
         for page_data in pages_data:
-            page_num = page_data["page"]
-            page_text = page_data["text"]
-            img_paths = page_data["image_paths"]
-
-            page_chunks = simple_chunker(page_text, chunk_size, chunk_overlap)
-            if not page_chunks and img_paths:
-                page_chunks = [f"Images present on page/slide {page_num}."]
-
-            for i, chunk_text in enumerate(page_chunks):
-                cid = generate_chunk_id(file_name, page_num, i)
-                std = parse_standard_meta(file_name)
-                meta = {
-                    "source": file_name,
-                    "page": int(page_num),
-                    "chunk_in_page": int(i + 1),
-                    "image_paths_str": "|".join(to_portable_image_refs(img_paths)),
-                    "family": std.get("family") or "",
-                    "year": std.get("year") or "",
-                }
-                chunks.append({
-                    "id": cid,
-                    "text": chunk_text,
-                    "metadata": meta
-                })
-
+            chunks.extend(self._chunks_from_page(file_name, page_data, chunk_size, chunk_overlap))
         return chunks
+
+    def _index_pdf_resumable(
+        self,
+        file_path: Path,
+        chunk_size: int,
+        chunk_overlap: int,
+        job_id: int,
+    ) -> int:
+        """Parse → embed → write one page at a time so a 1,000-page PDF can resume."""
+        file_name = file_path.name
+        already = vector_db_service.indexed_pages(file_name)
+        if already:
+            app_logger.info(
+                "Indexer",
+                f"Resuming {file_name}: {len(already)} pages already saved.",
+                document=file_name,
+            )
+
+        def on_page(page: int, total: int) -> None:
+            with self._status_lock:
+                self._status.current_page = page
+                self._status.total_pages = total
+                self._status.current_operation = f"Reading {file_name} · page {page}/{total}"
+
+        pages_data = parse_pdf_document(
+            file_path,
+            should_stop=lambda: self._should_stop(job_id),
+            on_page=on_page,
+            skip_pages=already,
+        )
+        if not pages_data:
+            if already:
+                app_logger.info("Indexer", f"{file_name} already fully indexed ({len(already)} pages).", document=file_name)
+            return 0
+
+        flush_pages = max(1, int(os.getenv("SQA_FLUSH_PAGES", "1")))
+        pending: List[Dict[str, Any]] = []
+        pages_since_flush = 0
+        added = 0
+        for page_data in pages_data:
+            if self._should_stop(job_id):
+                raise IndexingCancelled(f"Stopped while indexing {file_name}")
+            pending.extend(self._chunks_from_page(file_name, page_data, chunk_size, chunk_overlap))
+            pages_since_flush += 1
+            if pages_since_flush >= flush_pages:
+                added += self._flush_chunks(pending)
+                pending = []
+                pages_since_flush = 0
+                time.sleep(0.03)
+        if pending:
+            added += self._flush_chunks(pending)
+        return added
 
     def _run_indexing_job(self, req: IndexStartRequest, job_id: int = 0):
         start_time = time.time()
@@ -347,24 +400,42 @@ class IndexingService:
                 app_logger.info("Indexer", f"Processing {file_name}...", document=file_name)
 
                 try:
-                    file_chunks = self._process_single_file(file_path, chunk_size, chunk_overlap, job_id=job_id)
-                    if not still_current():
-                        self._mark_stopped("Stopped by user")
-                        return
-                    if file_chunks:
-                        app_logger.success("Indexer", f"Extracted {len(file_chunks)} chunks from {file_name}", document=file_name)
-                        added = self._flush_chunks(file_chunks)
+                    if file_path.suffix.lower() == ".pdf":
+                        added = self._index_pdf_resumable(file_path, chunk_size, chunk_overlap, job_id)
+                        if not still_current():
+                            self._mark_stopped("Stopped by user")
+                            return
                         total_chunks_added += added
                         with self._status_lock:
                             self._status.total_chunks_indexed = total_chunks_added
-                        tracker.mark_processed(str(file_path))
-                        app_logger.success(
-                            "Indexer",
-                            f"Saved {added} vectors for {file_name}. Collection now {vector_db_service.count()} chunks.",
-                            document=file_name,
-                        )
+                        if added or vector_db_service.indexed_pages(file_name):
+                            tracker.mark_processed(str(file_path))
+                            app_logger.success(
+                                "Indexer",
+                                f"Saved {added} vectors for {file_name}. Collection now {vector_db_service.count()} chunks.",
+                                document=file_name,
+                            )
+                        else:
+                            app_logger.warning("Indexer", f"No text chunks produced for {file_name}", document=file_name)
                     else:
-                        app_logger.warning("Indexer", f"No text chunks produced for {file_name}", document=file_name)
+                        file_chunks = self._process_single_file(file_path, chunk_size, chunk_overlap, job_id=job_id)
+                        if not still_current():
+                            self._mark_stopped("Stopped by user")
+                            return
+                        if file_chunks:
+                            app_logger.success("Indexer", f"Extracted {len(file_chunks)} chunks from {file_name}", document=file_name)
+                            added = self._flush_chunks(file_chunks)
+                            total_chunks_added += added
+                            with self._status_lock:
+                                self._status.total_chunks_indexed = total_chunks_added
+                            tracker.mark_processed(str(file_path))
+                            app_logger.success(
+                                "Indexer",
+                                f"Saved {added} vectors for {file_name}. Collection now {vector_db_service.count()} chunks.",
+                                document=file_name,
+                            )
+                        else:
+                            app_logger.warning("Indexer", f"No text chunks produced for {file_name}", document=file_name)
 
                 except IndexingCancelled:
                     app_logger.warning("Indexer", f"Stopped while processing {file_name}", document=file_name)

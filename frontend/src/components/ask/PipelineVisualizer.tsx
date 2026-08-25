@@ -86,7 +86,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({
         </div>
         <div className="rag-gauge" title="Line progress" aria-hidden>
           <svg viewBox="0 0 48 28" className="w-12 h-7">
-            <path d="M4 24 A20 20 0 0 1 44 24" fill="none" stroke="currentColor" className="text-line" strokeWidth="3" />
+            <path d="M4 24 A20 20 0 0 1 44 24" fill="none" stroke="#cbd5e1" strokeWidth="3" />
             <path
               d="M4 24 A20 20 0 0 1 44 24"
               fill="none"

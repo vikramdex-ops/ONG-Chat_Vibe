@@ -101,6 +101,7 @@ class IndexStatus(BaseModel):
     total_chunks_indexed: int = 0
     error: Optional[str] = None
     current_page: Optional[int] = None
+    total_pages: Optional[int] = None
     worker_stage: Optional[str] = None  # extract | embed | write
     filmstrip_url: Optional[str] = None
     file_queue: List[FileQueueItem] = []

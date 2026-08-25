@@ -9,9 +9,17 @@ from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from app.core.config import DATA_DIR, IMAGES_DIR, settings, settings_manager
+from app.core.config import (
+    DATA_DIR,
+    IMAGES_DIR,
+    CHUNK_SNAPSHOT_PATH,
+    PROCESSED_FILES_LOG,
+    settings,
+    settings_manager,
+)
 from app.models.schemas import BookmarkCreate, BookmarkItem, BriefingRequest
 from app.services.history import history_service
+from app.services.vector_db import vector_db_service
 
 router = APIRouter(prefix="/api", tags=["Workspace"])
 
@@ -66,6 +74,9 @@ async def export_kb_pack():
             for path in image_root.rglob("*"):
                 if path.is_file():
                     zf.write(path, arcname=str(Path("images") / path.relative_to(image_root)))
+        for extra in (CHUNK_SNAPSHOT_PATH, PROCESSED_FILES_LOG):
+            if extra.exists():
+                zf.write(extra, arcname=extra.name)
     buf.seek(0)
     filename = f"sqa-kb-{datetime.utcnow().strftime('%Y%m%d')}.zip"
     return StreamingResponse(

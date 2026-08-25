@@ -10,23 +10,26 @@ import {
   Terminal,
   FolderOpen
 } from 'lucide-react';
-import { IndexStatus, LogEntry, AppSettings } from '../../types';
+import { IndexStatus, LogEntry, AppSettings, HealthStatus } from '../../types';
 import {
   startIndexing,
   stopIndexing,
   getIndexStatus,
   getIndexLogs,
-  uploadDocuments
+  uploadDocuments,
+  LiveStatus,
 } from '../../services/api';
 import { ConfettiBurst } from '../ui/ConfettiBurst';
 import { resolveApiUrl } from '../../lib/apiBase';
 
 interface IndexingViewProps {
   settings: AppSettings | null;
+  health?: HealthStatus | null;
+  live?: LiveStatus | null;
   onIndexingFinished?: () => void;
 }
 
-export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexingFinished }) => {
+export const IndexingView: React.FC<IndexingViewProps> = ({ settings, health, live, onIndexingFinished }) => {
   const [status, setStatus] = useState<IndexStatus>({
     is_running: false,
     state: 'idle',
@@ -143,6 +146,14 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <ConfettiBurst active={showConfetti} />
+      {(live?.persistence || health?.details?.persistence) === 'ephemeral' && (
+        <div className="panel p-4 border-rose-300 dark:border-rose-800/60 bg-rose-50/80 dark:bg-rose-950/30 text-xs text-rose-950 dark:text-rose-100">
+          <p className="font-semibold">Do not index a large library on this cloud host.</p>
+          <p className="mt-1 text-rose-900/80 dark:text-rose-100/80">
+            Free Render disk is empty after every sleep or redeploy — that is why previously saved chunks vanished. Page-level writes help a crash mid-PDF, but they cannot outlive a wiped disk. Use the Windows app from GitHub Releases for thousands of pages.
+          </p>
+        </div>
+      )}
 
       {(status.file_queue && status.file_queue.length > 0) && (
         <div className="panel p-4 space-y-3">
@@ -259,7 +270,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               2. Processing Configuration
             </h3>
             <p className="text-xs text-fg-muted mt-0.5">
-              Digital PDFs are chunked from the PDF text layer. Scanned pages use ONNX OCR. Vectors are written in small batches after each file — wait for “Saved N vectors” and a non-zero Indexed count before asking.
+              Digital PDFs are chunked from the PDF text layer. Scanned pages use ONNX OCR. Each page is written as soon as it is embedded — if the job stops at page 180 of 236, start again and those 180 pages stay. Wait for “Saved N vectors” and a non-zero Indexed count before asking.
             </p>
           </div>
 

@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = Path(os.environ.get("SQA_DATA_DIR", str(BASE_DIR / "data"))).resolve()
+from app.core.runtime import backend_dir, resolve_data_dir
+
+BASE_DIR = backend_dir()
+DATA_DIR = resolve_data_dir()
 UPLOADS_DIR = DATA_DIR / "uploads"
 IMAGES_DIR = DATA_DIR / "images"
 CHROMA_DIR = DATA_DIR / "chroma_db"

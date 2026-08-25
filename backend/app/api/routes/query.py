@@ -7,7 +7,6 @@ from app.services.history import history_service
 from app.core.logging_service import app_logger
 from app.core.config import settings_manager
 from app.core.request_context import request_api_key
-from app.services.llm.factory import get_llm_provider
 
 router = APIRouter(prefix="/api/query", tags=["Query"])
 

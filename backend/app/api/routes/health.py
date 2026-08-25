@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.models.schemas import HealthStatus
 from app.core.config import settings
+from app.core.runtime import runtime_info
 from app.services.vector_db import vector_db_service
 from app.services.embeddings import embedding_service
 from app.services.llm.factory import get_llm_provider
@@ -11,8 +12,17 @@ router = APIRouter(prefix="/api/health", tags=["Health"])
 
 @router.get("/live")
 async def liveness():
-    """Cheap probe for Render / Hugging Face / Cloud Run. Does not touch Chroma or the LLM."""
-    return {"status": "ok", "service": "sqa-og", "version": "2.0.0"}
+    """Cheap probe. Does not touch Chroma or the LLM — stays fast during indexing."""
+    info = runtime_info()
+    return {
+        "status": "ok",
+        "service": "sqa-og",
+        "version": "2.0.0",
+        "runtime": info["runtime"],
+        "persistence": info["persistence"],
+        "data_dir": info["data_dir"],
+        "desktop_releases_url": info["desktop_releases_url"],
+    }
 
 
 @router.get("", response_model=HealthStatus)
@@ -47,7 +57,8 @@ async def get_overall_health():
             "embedding_backend": embedding_service.backend,
             "llm_provider": settings.llm_provider,
             "llm_url": settings.llm_server_url,
-            "llm_details": llm_health
+            "llm_details": llm_health,
+            **runtime_info(),
         }
     )
 

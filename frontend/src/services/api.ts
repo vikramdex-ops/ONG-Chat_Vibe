@@ -24,10 +24,26 @@ export async function getHealth(): Promise<HealthStatus> {
   return res.json();
 }
 
-export async function getLive(): Promise<{ status: string }> {
-  const res = await fetch(`${API_BASE}/health/live`);
-  if (!res.ok) throw new Error('API is waking up');
-  return res.json();
+export type LiveStatus = {
+  status: string;
+  service?: string;
+  version?: string;
+  runtime?: string;
+  persistence?: string;
+  data_dir?: string;
+  desktop_releases_url?: string;
+};
+
+export async function getLive(timeoutMs = 4000): Promise<LiveStatus> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}/health/live`, { signal: controller.signal });
+    if (!res.ok) throw new Error('API is waking up');
+    return res.json();
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 export async function getSettings(): Promise<AppSettings> {

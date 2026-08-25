@@ -55,16 +55,22 @@ Frontend available at **http://localhost:3000**
 
 `Ctrl+K` opens the command palette. A stable snapshot of the pre-upgrade app is tagged `stable-v2.0`.
 
-### Deploy (free web app)
+### Desktop app (recommended for a real knowledge base)
+
+Render free **wipes ChromaDB** on every sleep, crash, and redeploy. For hundreds of PDFs use the Windows build:
+
+**https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest**
+
+Unzip `SQA-OG-windows.zip` → run `SQA-OG.exe`. The library lives in `%LOCALAPPDATA%\SQA-OG` and survives app updates. See **[DESKTOP.md](DESKTOP.md)**.
+
+### Deploy (free web demo)
 
 See **[DEPLOY.md](DEPLOY.md)** for the click-by-click path.
 
 - **Vercel Hobby** hosts the Vite frontend.
-- **Render free Web Service** (native Python, no Docker) hosts FastAPI + Chroma + ONNX MiniLM so it fits 512 MB.
+- **Render free Web Service** (native Python, no Docker) hosts FastAPI + Chroma + ONNX MiniLM so it fits 512 MB. Disk is ephemeral — treat this as a demo, not the system of record.
 - **Google Gemini** is the free LLM. Each visitor pastes their own key in Settings (stored in the browser, not on Render). Set `VITE_API_BASE=https://<service>.onrender.com/api` on Vercel.
 - Do not put Chroma or uploads on Vercel serverless. Do not proxy SSE/uploads through Vercel.
-
-Desktop `.exe`: `npm run build` then package `run_app.py` so FastAPI serves `frontend/dist`.
 
 ---
 

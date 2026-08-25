@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,7 +6,8 @@ from fastapi.responses import FileResponse
 
 from fastapi import HTTPException
 
-from app.core.config import IMAGES_DIR, BASE_DIR, settings, cors_allow_origins
+from app.core.config import IMAGES_DIR, settings, cors_allow_origins
+from app.core.runtime import frontend_dist, runtime_info
 from app.core.logging_service import app_logger
 from app.core.request_context import set_request_llm, reset_request_llm
 from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace
@@ -63,8 +63,8 @@ app.include_router(settings_routes.router)
 app.include_router(history.router)
 app.include_router(workspace.router)
 
-# Mount built frontend if available
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+# Mount built frontend if available (Vite dist, or the copy bundled inside the .exe)
+FRONTEND_DIST = frontend_dist()
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
@@ -93,6 +93,24 @@ async def on_startup():
     app_logger.info("Server", f"Collection: {settings.collection_name}")
     app_logger.info("Server", f"Embedding Model: {settings.embedding_model_name}")
     app_logger.info("Server", f"LLM Server: {settings.llm_server_url}")
+    info = runtime_info()
+    app_logger.info(
+        "Server",
+        f"Runtime={info['runtime']} persistence={info['persistence']} data_dir={info['data_dir']}",
+    )
+    try:
+        from app.services.vector_db import vector_db_service
+        count = vector_db_service.count()
+        app_logger.info("Server", f"Indexed chunks on boot: {count}")
+        if count == 0 and info["persistence"] == "ephemeral":
+            app_logger.warning(
+                "Server",
+                "Knowledge base is empty. This host wipes disk on sleep/redeploy — use the desktop .exe or import a KB pack.",
+            )
+        elif count == 0:
+            app_logger.info("Server", "Knowledge base is empty. Index documents or import a KB pack.")
+    except Exception as exc:
+        app_logger.warning("Server", f"Could not read vector store on boot: {exc}")
 
 if __name__ == "__main__":
     import uvicorn

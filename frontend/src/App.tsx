@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { CommandPalette } from './components/layout/CommandPalette';
+import { PersistenceNotice } from './components/layout/PersistenceNotice';
 import { AskView } from './components/ask/AskView';
 import { IndexingView } from './components/indexing/IndexingView';
 import { DocumentsView } from './components/documents/DocumentsView';
@@ -9,7 +10,8 @@ import { HistoryView } from './components/history/HistoryView';
 import { SettingsView } from './components/settings/SettingsView';
 import { AboutView } from './components/about/AboutView';
 import { TabType, HealthStatus, AppSettings, ImageResult, SourceContext } from './types';
-import { getHealth, getSettings, getDocuments, getLive } from './services/api';
+import { getHealth, getSettings, getDocuments, getLive, LiveStatus } from './services/api';
+import { API_BASE } from './lib/apiBase';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('ask');
@@ -21,12 +23,25 @@ export const App: React.FC = () => {
   const [replay, setReplay] = useState<{ question: string; answer: string; sources: SourceContext[]; images: ImageResult[] } | null>(null);
   const [lastQuestion, setLastQuestion] = useState('');
   const [apiReady, setApiReady] = useState<boolean | null>(null);
+  const [live, setLive] = useState<LiveStatus | null>(null);
+  const lastLiveOk = useRef<number>(0);
+  const isRemoteApi = /^https?:\/\//i.test(API_BASE);
 
   const refreshGlobalState = async () => {
     try {
-      await getLive();
+      const probe = await getLive();
+      lastLiveOk.current = Date.now();
+      setLive(probe);
       setApiReady(true);
     } catch {
+      // Indexing can starve the CPU for a few seconds without the process being down.
+      if (Date.now() - lastLiveOk.current < 120_000) {
+        return;
+      }
+      if (!isRemoteApi) {
+        setApiReady(true);
+        return;
+      }
       setApiReady(false);
       return;
     }
@@ -84,6 +99,7 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-surface flex flex-col font-sans">
       <Header
         health={health}
+        live={live}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         topK={settings?.top_k || 3}
@@ -120,6 +136,8 @@ export const App: React.FC = () => {
             {activeTab === 'indexing' && (
               <IndexingView
                 settings={settings}
+                health={health}
+                live={live}
                 onIndexingFinished={refreshGlobalState}
               />
             )}

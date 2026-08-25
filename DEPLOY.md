@@ -67,6 +67,33 @@ If a ping is missed, the first visitor sees the amber wake banner for up to a mi
 
 ---
 
+## 4. Desktop .exe — GitHub Releases (real knowledge base)
+
+Render free **cannot** keep Chroma. The disk is empty after every sleep, OOM kill, and redeploy. That is why Indexed went back to 0.
+
+Every push to this branch rebuilds a portable Windows app:
+
+**https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest**
+
+| Item | Value |
+| --- | --- |
+| File | `SQA-OG-windows.zip` |
+| Run | `SQA-OG.exe` |
+| Data | `%LOCALAPPDATA%\SQA-OG` (survives updates) |
+| Workflow | `.github/workflows/release-desktop.yml` |
+
+If Actions never runs, paste `packaging/github-release-desktop.yml` once under **Actions → New workflow**. GitHub **Releases** is the download page. **Packages** is for Docker/npm — we do not put the `.exe` there.
+
+Local rebuild:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging/build_windows.ps1
+```
+
+Details: **[DESKTOP.md](DESKTOP.md)**.
+
+---
+
 ## Local check
 
 ```bash
