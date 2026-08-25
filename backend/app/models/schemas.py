@@ -17,7 +17,6 @@ class QueryRequest(BaseModel):
     document: Optional[str] = None
     compare_documents: Optional[List[str]] = None
     history: Optional[List[ChatTurn]] = None
-    user_name: Optional[str] = None
 
 
 class SourceContext(BaseModel):
@@ -127,7 +126,6 @@ class HistoryItem(BaseModel):
     images_count: int = 0
     sources: List[SourceContext] = []
     images: List[ImageResult] = []
-    user_name: Optional[str] = None
     answer_mode: Optional[str] = None
     bookmarked: bool = False
 
@@ -148,13 +146,7 @@ class BookmarkCreate(BaseModel):
     collection: str = "default"
 
 
-class AuthRequest(BaseModel):
-    display_name: str
-    passcode: Optional[str] = None
-
-
 class BriefingRequest(BaseModel):
     question: str
     answer: str
     sources: List[SourceContext] = []
-    user_name: Optional[str] = None

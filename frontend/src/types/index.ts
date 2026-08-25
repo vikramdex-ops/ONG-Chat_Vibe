@@ -35,7 +35,6 @@ export interface QueryRequest {
   document?: string;
   compare_documents?: string[];
   history?: ChatTurn[];
-  user_name?: string;
 }
 
 export interface QueryResponse {
@@ -123,8 +122,6 @@ export interface AppSettings {
   llm_max_tokens: number;
   llm_temperature: number;
   llm_stop_strings: string[];
-  team_name?: string | null;
-  team_passcode?: string | null;
 }
 
 export interface HealthStatus {
@@ -147,7 +144,6 @@ export interface HistoryItem {
   images_count: number;
   sources: SourceContext[];
   images: ImageResult[];
-  user_name?: string | null;
   answer_mode?: string | null;
   bookmarked?: boolean;
 }

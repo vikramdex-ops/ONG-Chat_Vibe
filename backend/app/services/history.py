@@ -9,7 +9,7 @@ from app.models.schemas import HistoryItem, SourceContext, ImageResult, Bookmark
 
 
 class HistoryService:
-    """Manages persistent SQLite query history, bookmarks, and team identity."""
+    """Manages persistent SQLite query history and bookmarks."""
 
     def __init__(self, db_path: Path = HISTORY_DB_PATH):
         self.db_path = str(db_path)
@@ -30,8 +30,6 @@ class HistoryService:
                 )
             """)
             cols = {row[1] for row in conn.execute("PRAGMA table_info(query_history)").fetchall()}
-            if "user_name" not in cols:
-                conn.execute("ALTER TABLE query_history ADD COLUMN user_name TEXT")
             if "answer_mode" not in cols:
                 conn.execute("ALTER TABLE query_history ADD COLUMN answer_mode TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON query_history(timestamp DESC)")
@@ -53,7 +51,6 @@ class HistoryService:
         answer: str,
         sources: List[SourceContext],
         images: List[ImageResult],
-        user_name: Optional[str] = None,
         answer_mode: Optional[str] = None,
     ) -> HistoryItem:
         entry_id = str(uuid.uuid4())
@@ -63,9 +60,9 @@ class HistoryService:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                INSERT INTO query_history (id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, user_name, answer_mode)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (entry_id, timestamp, question, answer, len(sources), len(images), sources_json, images_json, user_name, answer_mode))
+                INSERT INTO query_history (id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, answer_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (entry_id, timestamp, question, answer, len(sources), len(images), sources_json, images_json, answer_mode))
             conn.commit()
 
         return HistoryItem(
@@ -77,7 +74,6 @@ class HistoryService:
             images_count=len(images),
             sources=sources,
             images=images,
-            user_name=user_name,
             answer_mode=answer_mode,
         )
 
@@ -90,14 +86,14 @@ class HistoryService:
             marked = self._bookmarked_ids(conn)
             if search:
                 cursor = conn.execute("""
-                    SELECT id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, user_name, answer_mode
+                    SELECT id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, answer_mode
                     FROM query_history
                     WHERE question LIKE ? OR answer LIKE ?
                     ORDER BY timestamp DESC LIMIT ?
                 """, (f"%{search}%", f"%{search}%", limit))
             else:
                 cursor = conn.execute("""
-                    SELECT id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, user_name, answer_mode
+                    SELECT id, timestamp, question, answer, sources_count, images_count, sources_json, images_json, answer_mode
                     FROM query_history
                     ORDER BY timestamp DESC LIMIT ?
                 """, (limit,))
@@ -115,8 +111,7 @@ class HistoryService:
                     images_count=r[5],
                     sources=[SourceContext(**s) for s in sources_data],
                     images=[ImageResult(**img) for img in images_data],
-                    user_name=r[8] if len(r) > 8 else None,
-                    answer_mode=r[9] if len(r) > 9 else None,
+                    answer_mode=r[8] if len(r) > 8 else None,
                     bookmarked=r[0] in marked,
                 ))
             return items

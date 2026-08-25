@@ -35,7 +35,6 @@ async def query_sqa(request: QueryRequest):
                 answer=response.answer,
                 sources=response.context,
                 images=response.images,
-                user_name=request.user_name,
                 answer_mode=response.answer_mode,
             )
         except Exception as hist_err:
@@ -64,7 +63,6 @@ async def stream_query_sqa(request: QueryRequest):
                             answer=data.get("answer", ""),
                             sources=sources,
                             images=images,
-                            user_name=request.user_name,
                             answer_mode=data.get("answer_mode"),
                         )
                     except Exception as hist_err:

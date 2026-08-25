@@ -10,26 +10,10 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from app.core.config import DATA_DIR, IMAGES_DIR, settings, settings_manager
-from app.models.schemas import AuthRequest, BookmarkCreate, BookmarkItem, BriefingRequest
+from app.models.schemas import BookmarkCreate, BookmarkItem, BriefingRequest
 from app.services.history import history_service
 
 router = APIRouter(prefix="/api", tags=["Workspace"])
-
-
-@router.post("/auth/login")
-async def login(req: AuthRequest):
-    name = (req.display_name or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Display name is required.")
-    expected = (settings.team_passcode or "").strip()
-    if expected and (req.passcode or "").strip() != expected:
-        raise HTTPException(status_code=403, detail="Team passcode is incorrect.")
-    return {
-        "success": True,
-        "display_name": name,
-        "team_name": settings.team_name or "SQA-O&G Team",
-        "shared_history": True,
-    }
 
 
 @router.get("/bookmarks", response_model=List[BookmarkItem])
@@ -134,7 +118,7 @@ pre{{white-space:pre-wrap;background:#f8fafc;padding:12px;border-radius:8px}}
 .meta{{color:#64748b;font-size:12px}}</style></head>
 <body>
 <h1>Engineering Query Briefing</h1>
-<p class="meta">{req.user_name or "SQA-O&G"} · generated locally</p>
+<p class="meta">SQA-O&G · generated locally</p>
 <h2>Question</h2><p>{req.question}</p>
 <h2>Answer</h2><p>{req.answer.replace("<", "&lt;").replace(chr(10), "<br/>")}</p>
 <h2>Sources</h2>{''.join(rows)}

@@ -52,8 +52,6 @@ class AppSettings(BaseModel):
     llm_max_tokens: int = 512
     llm_temperature: float = 0.6
     llm_stop_strings: List[str] = ["<|im_end|>", "<|endoftext|>", "\n\nUser:", "\n\nUSER:"]
-    team_name: Optional[str] = None
-    team_passcode: Optional[str] = None
 
 
 class SettingsManager:

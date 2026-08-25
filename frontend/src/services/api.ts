@@ -273,19 +273,6 @@ export async function deleteBookmark(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete bookmark');
 }
 
-export async function loginTeam(display_name: string, passcode?: string): Promise<{ success: boolean; display_name: string; team_name: string }> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ display_name, passcode })
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Login failed' }));
-    throw new Error(err.detail || 'Login failed');
-  }
-  return res.json();
-}
-
 export function kbExportUrl(): string {
   return `${API_BASE}/kb/export`;
 }
@@ -301,7 +288,7 @@ export async function importKbPack(file: File): Promise<any> {
   return res.json();
 }
 
-export async function exportBriefingHtml(payload: { question: string; answer: string; sources: SourceContext[]; user_name?: string }): Promise<string> {
+export async function exportBriefingHtml(payload: { question: string; answer: string; sources: SourceContext[] }): Promise<string> {
   const res = await fetch(`${API_BASE}/export/briefing`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

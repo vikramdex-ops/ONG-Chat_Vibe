@@ -8,7 +8,6 @@ import { PipelineVisualizer, PipelineStage } from './PipelineVisualizer';
 import { AnswerMode, ChatTurn, DocumentInfo, HealthStatus, ImageResult, QueryResponse, SourceContext } from '../../types';
 import { createBookmark, executeQuery, exportBriefingHtml, getDocuments, streamQuery } from '../../services/api';
 import { bestSourceForSentence, splitSentences } from '../../lib/citations';
-import { readSession } from '../../lib/session';
 import { Layers } from 'lucide-react';
 
 const DEMO_Q = 'What are the hydrostatic testing requirements for API 650 tanks?';
@@ -100,7 +99,6 @@ export const AskView: React.FC<AskViewProps> = ({
     document: documentFilter || undefined,
     compare_documents: compareA && compareB ? [compareA, compareB] : undefined,
     history: followUp ? thread : undefined,
-    user_name: readSession()?.display_name,
   });
 
   const canAsk = question.trim().length > 0;
@@ -202,7 +200,6 @@ export const AskView: React.FC<AskViewProps> = ({
       question,
       answer,
       sources,
-      user_name: readSession()?.display_name,
     });
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);

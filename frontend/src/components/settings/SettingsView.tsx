@@ -13,9 +13,8 @@ import {
   Palette
 } from 'lucide-react';
 import { AppSettings, HealthStatus } from '../../types';
-import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack, loginTeam } from '../../services/api';
+import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
-import { readSession, writeSession } from '../../lib/session';
 
 interface SettingsViewProps {
   health: HealthStatus | null;
@@ -62,8 +61,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [customGeminiModel, setCustomGeminiModel] = useState(false);
   const [lastOk, setLastOk] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState(readSession()?.display_name || '');
-  const [passcode, setPasscode] = useState('');
   const [flipPro, setFlipPro] = useState(false);
 
   useEffect(() => {
