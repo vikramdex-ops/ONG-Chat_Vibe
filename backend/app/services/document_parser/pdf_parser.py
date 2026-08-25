@@ -1,11 +1,11 @@
-import io
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable
 import fitz  # PyMuPDF
-from PIL import Image
+import numpy as np
 from app.core.config import IMAGES_DIR, settings
 from app.core.logging_service import app_logger
 from app.services.vector_db import sanitize_filename
+from app.services.document_parser.ocr_engine import ocr_image_array
 
 try:
     import pytesseract
@@ -31,8 +31,41 @@ def tesseract_available() -> bool:
         _tesseract_available = True
     except Exception:
         _tesseract_available = False
-        app_logger.info("PDFParser", "Tesseract is not installed; OCR fallback is disabled.")
+        return False
     return _tesseract_available
+
+
+def _native_page_text(page) -> str:
+    """Pull the PDF text layer. This is the primary chunk source — not OCR."""
+    text = (page.get_text("text", sort=True) or "").strip()
+    if len(text) >= settings.ocr_char_threshold:
+        return text
+    blocks = page.get_text("blocks") or []
+    parts = []
+    for block in blocks:
+        if len(block) >= 5 and isinstance(block[4], str) and block[4].strip():
+            parts.append(block[4].strip())
+    joined = "\n".join(parts).strip()
+    return joined if len(joined) > len(text) else text
+
+
+def _ocr_page(page) -> str:
+    """Fallback for scanned / image-only pages. Tesseract if present, else ONNX RapidOCR."""
+    pix = page.get_pixmap(dpi=150)
+    if tesseract_available():
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            return (pytesseract.image_to_string(img, lang="eng") or "").strip()
+        except Exception:
+            pass
+    arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+    if pix.n == 4:
+        arr = arr[:, :, :3]
+    elif pix.n == 1:
+        arr = np.repeat(arr, 3, axis=2)
+    return ocr_image_array(arr)
 
 
 def parse_pdf_document(
@@ -41,17 +74,24 @@ def parse_pdf_document(
     on_page: Optional[Callable[[int, int], None]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Extracts text and images from each page of a PDF document.
-    Performs OCR fallback when page text is less than ocr_char_threshold (default 50 chars).
-    Returns list of dicts: [{'page': int, 'text': str, 'image_paths': List[str]}, ...]
+    Build per-page text for chunking:
+      1) PDF text layer (PyMuPDF) — works for born-digital standards
+      2) OCR fallback — scanned pages only, when the text layer is thin
     """
     pdf_base_name = sanitize_filename(file_path.stem)
     page_data_list = []
+    text_pages = 0
+    ocr_pages = 0
+    empty_pages = 0
 
     try:
         doc = fitz.open(file_path)
         total_pages = len(doc)
-        app_logger.debug("PDFParser", f"Parsing PDF '{file_path.name}' ({total_pages} pages)", document=file_path.name)
+        app_logger.info(
+            "PDFParser",
+            f"Extracting text from '{file_path.name}' ({total_pages} pages) via PDF text layer, OCR only if a page is nearly empty.",
+            document=file_path.name,
+        )
 
         for page_num in range(total_pages):
             if should_stop and should_stop():
@@ -61,7 +101,8 @@ def parse_pdf_document(
                 on_page(page_num + 1, total_pages)
 
             page = doc[page_num]
-            page_text = page.get_text("text", sort=True)
+            page_text = _native_page_text(page)
+            source = "text-layer"
             image_paths_on_page = []
 
             try:
@@ -89,26 +130,36 @@ def parse_pdf_document(
             except Exception as img_err:
                 app_logger.warning("PDFParser", f"Page {page_num + 1}: Error scanning images: {img_err}", document=file_path.name)
 
-            if len(page_text.strip()) < settings.ocr_char_threshold and tesseract_available():
-                try:
-                    pix = page.get_pixmap(dpi=300)
-                    img_data = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_data))
-                    ocr_text = pytesseract.image_to_string(img, lang="eng")
-                    if len(ocr_text.strip()) > len(page_text.strip()) + 100:
-                        app_logger.info("PDFParser", f"Page {page_num + 1}: OCR improved text length from {len(page_text)} to {len(ocr_text)} chars", document=file_path.name)
-                        page_text = ocr_text
-                except Exception as ocr_err:
-                    app_logger.debug("PDFParser", f"Page {page_num + 1}: OCR skipped/failed ({ocr_err})", document=file_path.name)
+            if len(page_text) < settings.ocr_char_threshold:
+                if should_stop and should_stop():
+                    doc.close()
+                    raise IndexingCancelled(f"Stopped while reading {file_path.name} at page {page_num + 1}")
+                ocr_text = _ocr_page(page)
+                if len(ocr_text) > len(page_text):
+                    page_text = ocr_text
+                    source = "ocr"
+                    ocr_pages += 1
+                elif page_text:
+                    text_pages += 1
+                else:
+                    empty_pages += 1
+                    page_text = f"[Page {page_num + 1} has no extractable text layer. Figures on this page are stored as images.]"
+            else:
+                text_pages += 1
 
-            if page_text.strip() or image_paths_on_page:
-                page_data_list.append({
-                    "page": page_num + 1,
-                    "text": page_text.strip(),
-                    "image_paths": image_paths_on_page
-                })
+            page_data_list.append({
+                "page": page_num + 1,
+                "text": page_text.strip(),
+                "image_paths": image_paths_on_page,
+                "text_source": source,
+            })
 
         doc.close()
+        app_logger.success(
+            "PDFParser",
+            f"{file_path.name}: {text_pages} pages from PDF text, {ocr_pages} pages from OCR, {empty_pages} pages with no text.",
+            document=file_path.name,
+        )
         return page_data_list
     except IndexingCancelled:
         raise

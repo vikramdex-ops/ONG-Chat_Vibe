@@ -21,6 +21,17 @@ def test_chunker_short_text():
     assert chunks[0] == text
 
 
+def test_chunker_builds_from_extracted_pdf_text():
+    text = (
+        "ASME B16.5 Pipe Flanges and Flanged Fittings. "
+        "Hydrostatic test shall be conducted at 1.5 times design pressure. "
+        "Material shall conform to the applicable ASTM specification."
+    )
+    chunks = simple_chunker(text, chunk_size=80, chunk_overlap=15)
+    assert chunks
+    assert any("Hydrostatic" in c or "ASME" in c for c in chunks)
+
+
 def test_chunker_overlap():
     words = [f"word{i}" for i in range(100)]
     text = " ".join(words)
