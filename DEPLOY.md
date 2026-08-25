@@ -48,14 +48,10 @@ Each visitor opens Settings → **Get Free API Key** → pastes their own key. I
 
 ## 2. Keep the free instance from sleeping
 
-Render free **will** spin down after ~15 minutes with no traffic. That warning is expected. We keep it warm in three free layers:
+Render free **will** spin down after ~15 minutes with no traffic. That warning is expected. We keep it warm with two free layers:
 
-1. **GitHub Action** `.github/workflows/keep-awake.yml` pings `/api/health/live` every 10 minutes.
-   - After the service URL exists: GitHub repo → Settings → Secrets → Actions → New secret
-   - Name: `RENDER_HEALTH_URL`
-   - Value: `https://<service>.onrender.com/api/health/live`
-2. **UptimeRobot** (recommended, more reliable than GitHub cron): free monitor, 5 minute interval, same health URL.
-3. **Open browser tab**: the app heartbeats `/api/health/live` every 4 minutes while someone is using it.
+1. **UptimeRobot** (recommended): free HTTP monitor, 5 minute interval, URL `https://<service>.onrender.com/api/health/live`.
+2. **Open browser tab**: the app heartbeats `/api/health/live` every 4 minutes while someone is using it.
 
 If a ping is missed, the first visitor sees the amber wake banner for up to a minute. That is the free-tier tradeoff — persistent disks and no-sleep need a paid Render plan.
 
