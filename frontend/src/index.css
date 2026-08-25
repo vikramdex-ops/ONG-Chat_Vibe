@@ -437,6 +437,159 @@
   word-break: break-word;
 }
 
+.rag-rail {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px solid rgb(var(--line));
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgb(37 99 235 / 0.08), transparent 55%),
+    rgb(var(--surface-card));
+  padding: 0.9rem 1rem 0.85rem;
+}
+
+.dark .rag-rail {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgb(56 189 248 / 0.1), transparent 55%),
+    rgb(var(--surface-card));
+}
+
+.rag-rail.is-live {
+  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.18), 0 16px 40px -24px rgb(37 99 235 / 0.55);
+}
+
+.rag-rail.is-done {
+  box-shadow: 0 0 0 1px rgb(16 185 129 / 0.18);
+}
+
+.rag-live-pill {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #fff;
+  background: #2563eb;
+  border-radius: 999px;
+  padding: 2px 6px;
+  animation: rag-live 1.4s ease-in-out infinite;
+}
+
+.rag-track {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 22px;
+  height: 2px;
+  border-radius: 99px;
+  background: rgb(var(--line));
+  overflow: visible;
+}
+
+.rag-track-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #2563eb, #22d3ee, #34d399);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rag-spark {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.25), 0 0 18px #38bdf8;
+  animation: rag-spark 0.9s ease-in-out infinite;
+  transition: left 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rag-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rag-orb {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--line));
+  background: rgb(var(--surface-card));
+  color: rgb(var(--fg-muted));
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 220ms ease, background 220ms ease, color 220ms ease;
+}
+
+.rag-node:hover .rag-orb,
+.rag-node.is-selected .rag-orb {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.rag-node.is-active .rag-orb {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #fff;
+  box-shadow: 0 0 0 6px rgb(37 99 235 / 0.16), 0 10px 22px -10px rgb(37 99 235 / 0.8);
+  animation: rag-orb 1.3s ease-in-out infinite;
+}
+
+.rag-node.is-done .rag-orb {
+  background: #059669;
+  border-color: #34d399;
+  color: #fff;
+}
+
+.rag-label {
+  font-size: 10px;
+  font-weight: 650;
+  color: rgb(var(--fg));
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-node.is-active .rag-label {
+  color: #1d4ed8;
+}
+
+.dark .rag-node.is-active .rag-label {
+  color: #93c5fd;
+}
+
+.rag-detail {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(var(--surface-muted));
+  animation: tab-in 180ms ease-out;
+}
+
+@keyframes rag-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes rag-orb {
+  0%, 100% { box-shadow: 0 0 0 6px rgb(37 99 235 / 0.12), 0 10px 22px -10px rgb(37 99 235 / 0.7); }
+  50% { box-shadow: 0 0 0 10px rgb(37 99 235 / 0.08), 0 14px 26px -10px rgb(37 99 235 / 0.85); }
+}
+
+@keyframes rag-spark {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

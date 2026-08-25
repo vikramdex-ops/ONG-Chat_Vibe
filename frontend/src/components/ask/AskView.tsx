@@ -4,7 +4,7 @@ import { AnswerCard } from './AnswerCard';
 import { SourceCard } from './SourceCard';
 import { ImageGallery } from './ImageGallery';
 import { DocumentViewerModal } from '../viewer/DocumentViewerModal';
-import { PipelineStage } from './PipelineVisualizer';
+import { PipelineVisualizer, PipelineStage } from './PipelineVisualizer';
 import { AnswerMode, ChatTurn, DocumentInfo, HealthStatus, ImageResult, QueryResponse, SourceContext } from '../../types';
 import { createBookmark, executeQuery, exportBriefingHtml, getDocuments, streamQuery } from '../../services/api';
 import { bestSourceForSentence, splitSentences } from '../../lib/citations';
@@ -210,6 +210,9 @@ export const AskView: React.FC<AskViewProps> = ({
     pipelineStage === 'llm' ? 'Writing answer' :
     pipelineStage === 'complete' ? 'Done' :
     statusMessage || 'Working';
+
+  const provider = (health?.details?.llm_provider as string | undefined) || 'gemini';
+  const providerLabel = provider === 'gemini' ? 'Gemini' : provider === 'mock' ? 'Mock' : 'LLM';
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
