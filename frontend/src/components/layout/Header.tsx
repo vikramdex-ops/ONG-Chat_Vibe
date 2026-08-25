@@ -1,7 +1,8 @@
 import React from 'react';
-import { Database, Cpu, Bot, Settings as SettingsIcon, Layers, Sun, Moon } from 'lucide-react';
+import { Database, Cpu, Bot, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 import { HealthStatus, TabType } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { AppLogo } from '../brand/AppLogo';
 
 interface HeaderProps {
   health: HealthStatus | null;
@@ -17,9 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ health, setActiveTab, topK }) =>
   return (
     <header className="h-16 border-b border-line bg-surface-card/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-500/20 border border-blue-400/30">
-          <Layers className="w-5 h-5 text-white" />
-        </div>
+        <AppLogo size={40} className="shadow-md shadow-blue-500/20" />
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-base text-fg tracking-tight">SQA-O&amp;G</h1>

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Layers, ShieldCheck, Cpu, Database, Server, CheckCircle2 } from 'lucide-react';
-import { BrandFooter } from '../layout/BrandFooter';
+import { ShieldCheck, Cpu, Database, Server, CheckCircle2 } from 'lucide-react';
+import { AppLogo, CompanyName, DeveloperName } from '../brand/AppLogo';
 import { TiltCard } from '../ui/TiltCard';
 
 export const AboutView: React.FC = () => {
@@ -10,11 +10,9 @@ export const AboutView: React.FC = () => {
         <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex items-start gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-xl shadow-blue-500/20 border border-blue-400/30 shrink-0">
-            <Layers className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <AppLogo size={72} className="shadow-xl shadow-blue-500/20" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold text-fg tracking-tight">SQA-O&amp;G</h2>
               <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 font-bold">
                 v2.0 Web Edition
@@ -23,8 +21,13 @@ export const AboutView: React.FC = () => {
             <p className="text-sm text-fg/80 font-medium mt-1">
               Standard Query Assistant for Oil &amp; Gas Standards and Engineering Documentation
             </p>
-            <div className="mt-5 max-w-md">
-              <BrandFooter />
+            <div className="mt-4 space-y-1 text-sm">
+              <div className="text-fg-muted">
+                Built for <CompanyName className="text-sm" />
+              </div>
+              <div className="text-fg-muted">
+                Developed by <DeveloperName className="text-sm" />
+              </div>
             </div>
           </div>
         </div>

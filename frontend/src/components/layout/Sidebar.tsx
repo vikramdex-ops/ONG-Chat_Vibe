@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { TabType } from '../../types';
 import { BrandFooter } from './BrandFooter';
+import { AppLogo } from '../brand/AppLogo';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -109,13 +110,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, docum
         })}
       </div>
 
-      <div className="px-3 pt-4 border-t border-line">
-        <div className="text-[11px] text-fg-muted font-medium leading-tight">
-          Developed for <span className="text-fg font-semibold">Dexterity Design Services</span>
+      <div className="px-2 pt-4 border-t border-line space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <AppLogo size={28} />
+          <span className="text-[11px] font-semibold text-fg">SQA-O&amp;G</span>
         </div>
-        <div className="text-[10px] text-fg-muted mt-0.5">
-          By Vikram • Production Build 2.0
-        </div>
+        <BrandFooter compact />
       </div>
     </aside>
   );
