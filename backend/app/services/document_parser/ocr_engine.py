@@ -1,23 +1,18 @@
-"""Multi-layer OCR for scanned / image-heavy engineering pages.
+"""Local multi-layer OCR for scanned / image-heavy engineering pages.
 
-Layers (all free):
-  1. RapidOCR ONNX — always bundled, no Tesseract binary
+Layers (free libraries only — no cloud vision):
+  1. RapidOCR ONNX — bundled, no Tesseract binary
   2. Tesseract — if the binary is on PATH
-  3. Gemini Vision — only when the visitor's own free key is present
-     and local engines still produced thin text
 
-The richest result wins. Close runners are merged so numbers from one
+The richer result wins. Close runners are merged so numbers from one
 engine and headings from another both land in the chunk.
 """
 
 from __future__ import annotations
 
-import base64
-import io
-import os
 import threading
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
@@ -27,8 +22,6 @@ from app.core.logging_service import app_logger
 _rapid = None
 _rapid_failed = False
 _rapid_lock = threading.Lock()
-_index_ocr_key: Optional[str] = None
-_index_ocr_lock = threading.Lock()
 
 try:
     import pytesseract
@@ -51,19 +44,6 @@ class OcrResult:
     engine: str
     score: float
     layers: List[OcrCandidate] = field(default_factory=list)
-
-
-def set_index_ocr_key(key: Optional[str]) -> None:
-    """Capture the browser Gemini key when indexing starts (request is gone later)."""
-    global _index_ocr_key
-    with _index_ocr_lock:
-        _index_ocr_key = (key or "").strip() or None
-
-
-def active_ocr_key() -> Optional[str]:
-    from app.core.request_context import request_api_key
-
-    return request_api_key() or _index_ocr_key
 
 
 def tesseract_available() -> bool:
@@ -89,12 +69,10 @@ def engine_status() -> Dict[str, object]:
     return {
         "rapidocr": rapidocr_available(),
         "tesseract": tesseract_available(),
-        "gemini_vision": bool(active_ocr_key()),
         "layers": [
             "pdf-text-layer",
             "rapidocr-onnx",
             "tesseract" if tesseract_available() else "tesseract (not installed)",
-            "gemini-vision (user key, scanned pages only)",
         ],
     }
 
@@ -111,7 +89,6 @@ def score_text(text: str) -> float:
     digits = sum(ch.isdigit() for ch in cleaned)
     ratio = alnum / max(len(cleaned), 1)
     words = [w for w in cleaned.split() if any(ch.isalnum() for ch in w)]
-    # Engineering pages have lots of numbers — keep them.
     return round(len(cleaned) * (0.35 + 0.65 * ratio) + 2.4 * len(words) + 0.8 * digits + 0.15 * letters, 2)
 
 
@@ -159,7 +136,6 @@ def preprocess_for_ocr(image_array: np.ndarray) -> np.ndarray:
     gray = ImageOps.grayscale(img)
     gray = ImageOps.autocontrast(gray, cutoff=1)
     gray = gray.filter(ImageFilter.MedianFilter(size=3))
-    # Keep a 3-channel array — RapidOCR expects HxWx3.
     rgb = Image.merge("RGB", (gray, gray, gray))
     return np.asarray(rgb)
 
@@ -198,63 +174,10 @@ def ocr_tesseract(image_array: np.ndarray) -> str:
     try:
         prepared = preprocess_for_ocr(image_array)
         img = Image.fromarray(prepared)
-        # psm 6 = block of text (standards, datasheets). oem 3 = default LSTM.
         text = pytesseract.image_to_string(img, lang="eng", config="--oem 3 --psm 6") or ""
         return text.strip()
     except Exception as exc:
         app_logger.debug("OCR", f"Tesseract failed: {exc}")
-        return ""
-
-
-def ocr_gemini_vision(image_array: np.ndarray) -> str:
-    """Free-tier Gemini vision using the visitor's own key. Last resort for scans."""
-    key = active_ocr_key()
-    if not key:
-        return ""
-    try:
-        import httpx
-
-        img = _pil_from_array(image_array)
-        # Cap payload so a 200 dpi A1 sheet does not blow the request.
-        img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=82)
-        b64 = base64.standard_b64encode(buf.getvalue()).decode("ascii")
-        model = os.getenv("SQA_OCR_GEMINI_MODEL") or "gemini-2.5-flash"
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={key}"
-        )
-        payload = {
-            "contents": [{
-                "parts": [
-                    {
-                        "text": (
-                            "Extract every readable character from this engineering page. "
-                            "Keep original numbers, units, table rows, and clause IDs. "
-                            "Return plain text only — no markdown, no commentary."
-                        )
-                    },
-                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                ]
-            }],
-            "generationConfig": {"temperature": 0.0, "maxOutputTokens": 2048},
-        }
-        with httpx.Client(timeout=25.0) as client:
-            res = client.post(url, json=payload)
-        if res.status_code >= 400:
-            app_logger.debug("OCR", f"Gemini vision HTTP {res.status_code}")
-            return ""
-        data = res.json()
-        parts = (
-            data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [])
-        )
-        text = "".join(str(p.get("text") or "") for p in parts).strip()
-        return text
-    except Exception as exc:
-        app_logger.debug("OCR", f"Gemini vision OCR failed: {exc}")
         return ""
 
 
@@ -301,16 +224,11 @@ def pick_best(candidates: List[OcrCandidate]) -> OcrResult:
     )
 
 
-def ocr_image_array(image_array: np.ndarray, allow_online: bool = True) -> str:
-    """Back-compat helper used by older callers."""
-    return ocr_multilayer(image_array, allow_online=allow_online).text
+def ocr_image_array(image_array: np.ndarray) -> str:
+    return ocr_multilayer(image_array).text
 
 
-def ocr_multilayer(
-    image_array: np.ndarray,
-    allow_online: bool = True,
-    native_text: str = "",
-) -> OcrResult:
+def ocr_multilayer(image_array: np.ndarray, native_text: str = "") -> OcrResult:
     candidates: List[OcrCandidate] = []
     if native_text and native_text.strip():
         candidates.append(OcrCandidate("pdf-text", native_text.strip(), score_text(native_text)))
@@ -323,14 +241,7 @@ def ocr_multilayer(
     if tess:
         candidates.append(OcrCandidate("tesseract", tess, score_text(tess)))
 
-    local = pick_best(candidates)
-    local_thin = local.score < 180 or len(local.text) < 80
-    if allow_online and local_thin:
-        vision = ocr_gemini_vision(image_array)
-        if vision:
-            candidates.append(OcrCandidate("gemini-vision", vision, score_text(vision)))
-            local = pick_best(candidates)
-    return local
+    return pick_best(candidates)
 
 
 def page_to_array(page, dpi: int = 200) -> np.ndarray:

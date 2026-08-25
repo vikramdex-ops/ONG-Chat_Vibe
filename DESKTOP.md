@@ -1,6 +1,6 @@
 # SQA-O&G Desktop (Windows .exe)
 
-Use this when the knowledge base matters. Render free **wipes ChromaDB** on every sleep, crash, and redeploy. A laptop disk does not.
+This is the product. One unzip, one `.exe`, the whole assistant — UI, API, Chroma, uploads — on your machine.
 
 ## Download
 
@@ -37,7 +37,7 @@ Updating the `.exe` does **not** wipe this folder. Uninstall = delete the zip fo
 ## Large libraries (hundreds of PDFs / thousands of pages)
 
 - Vectors are written **per page**. If the app stops at page 180 of 236, start again — those 180 pages stay.
-- Digital PDFs use the text layer. Scanned pages run RapidOCR + Tesseract, then Gemini Vision (your key) if the page is still thin.
+- Digital PDFs use the text layer. Scanned pages run RapidOCR + Tesseract locally.
 - Keep the console window open while indexing. Closing it stops the server.
 - Export a KB pack from Settings after a big index as an off-machine backup.
 
@@ -55,4 +55,4 @@ Workflow: `.github/workflows/release-desktop.yml`
 
 If Actions never appears, paste `packaging/github-release-desktop.yml` once under **Actions → New workflow**. After that, every push rebuilds the `.exe`.
 
-GitHub **Releases** is the download page. **Packages** is for Docker/npm — we do not publish the `.exe` there. **Deployments** is what Vercel already writes for the web UI.
+GitHub **Releases** is the download page. **Packages** is for Docker/npm — we do not publish the `.exe` there.

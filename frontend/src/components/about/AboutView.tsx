@@ -15,7 +15,7 @@ export const AboutView: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold text-fg tracking-tight">SQA-O&amp;G</h2>
               <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 font-bold">
-                v2.0 Web Edition
+                v2.0 Desktop
               </span>
             </div>
             <p className="text-sm text-fg/80 font-medium mt-1">
@@ -79,7 +79,7 @@ export const AboutView: React.FC = () => {
 
           <div className="flex items-start gap-2.5 bg-surface-input p-3 rounded-xl border border-line">
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            <span><strong className="text-fg">OCR Fallback:</strong> Automatic Tesseract OCR on scanned or image-heavy PDF pages with &lt; 50 characters.</span>
+            <span><strong className="text-fg">Local OCR:</strong> RapidOCR + Tesseract on scanned pages. No cloud vision. Digital PDFs stay on the text layer.</span>
           </div>
 
           <div className="flex items-start gap-2.5 bg-surface-input p-3 rounded-xl border border-line">
@@ -100,7 +100,7 @@ export const AboutView: React.FC = () => {
           Desktop app for a real knowledge base
         </h4>
         <p className="text-xs text-fg-muted leading-relaxed">
-          The Vercel + Render site is a live demo. Render free wipes Chroma on every sleep and redeploy — that is a host limit, not a bug. The Windows build from GitHub Releases stores the library in <code className="text-indigo-600 dark:text-indigo-300">%LOCALAPPDATA%\SQA-OG</code> and is the path for hundreds of PDFs.
+          SQA-O&amp;G is a Windows desktop app. Unzip <code className="text-indigo-600 dark:text-indigo-300">SQA-OG-windows.zip</code>, run <code className="text-indigo-600 dark:text-indigo-300">SQA-OG.exe</code>, and the library lives on your disk — default <code className="text-indigo-600 dark:text-indigo-300">%LOCALAPPDATA%\SQA-OG</code>, or any drive you pick in Settings.
         </p>
         <a
           href="https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest"

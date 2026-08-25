@@ -156,11 +156,6 @@ class IndexingService:
         if self._is_running:
             self._force_idle("Recovered a stale indexer lock")
 
-        from app.core.request_context import request_api_key
-        from app.services.document_parser.ocr_engine import set_index_ocr_key
-
-        set_index_ocr_key(request_api_key())
-
         self._job_id += 1
         job_id = self._job_id
         self._is_running = True

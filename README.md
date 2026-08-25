@@ -1,132 +1,110 @@
-# SQA-O&G — Standard Query Assistant
+<p align="center">
+  <img src="docs/readme-banner.png" alt="SQA-O&G — a plant library that lives on your desk" width="100%">
+</p>
 
-**SQA-O&G** is a modern, production-quality web application for querying Oil & Gas engineering standards (API, ASME, ISO, etc.) using local RAG (Retrieval-Augmented Generation) over your own uploaded PDFs, PPTX, and DOCX documents.
+<h1 align="center">SQA-O&amp;G</h1>
+<p align="center"><em>Standard Query Assistant · Oil &amp; Gas</em></p>
+<p align="center">
+  <strong>Not a website. Not a rented disk. A desk instrument.</strong><br>
+  Built by <a href="https://dexteritydesign.in">Vikram</a> for Dexterity Design Services.
+</p>
 
-Built by **Vikram** for **Dexterity Design Services**.
-
----
-
-## Features
-
-- 📄 **Multi-Format Document Indexing** — PDF (with OCR fallback), PPTX, DOCX
-- 🔍 **Vector Semantic Search** — ChromaDB + `all-MiniLM-L6-v2` embeddings
-- 🤖 **LLM Providers Supported**:
-  - **Google Gemini API** (free tier — `gemini-2.5-flash`, `gemini-2.5-pro`, etc.)
-  - OpenAI-compatible endpoints (Ollama, vLLM, OpenAI)
-  - Local FastAPI / llama.cpp server
-  - Offline Mock provider
-- 🖼️ **Relevant Technical Images** — Extracted from documents & displayed alongside answers
-- 📚 **Document Library** — Browse indexed documents with chunk explorer
-- 📜 **Query History** — Searchable SQLite audit log of all queries
-- 🌗 **Light & Dark Mode** — Default light theme with 1-click toggle
-- 📦 **Portable Knowledge Base** — Share the `chroma_db` folder across computers
+<p align="center">
+  <a href="https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest"><img src="https://img.shields.io/badge/Download-SQA--OG--windows.zip-0f766e?style=for-the-badge" alt="Download desktop zip"></a>
+  <img src="https://img.shields.io/badge/Runs_on-your_PC-1e3a5f?style=for-the-badge" alt="Runs on your PC">
+  <img src="https://img.shields.io/badge/KB_disk-C_D_or_E-b45309?style=for-the-badge" alt="KB on any drive">
+</p>
 
 ---
 
-## Quick Start
+A standards library does not belong on a free host that goes to sleep and forgets every chunk. **SQA-O&G is a Windows app.** One zip. One `SQA-OG.exe`. The UI, the API, Chroma, the PDFs, the figures — all on the machine in front of you.
 
-### Prerequisites
+You ask like an engineer. It answers from *your* ASME / API / ISO pages, with citations and the drawings that sat next to the clause.
+
+```
+  [ PDF / PPTX / DOCX ]
+            │
+            ▼
+   text layer ──or── RapidOCR + Tesseract
+            │
+            ▼
+     page written to Chroma     ← survives a stop at page 180
+            │
+            ▼
+     Ask  →  retrieve  →  your Gemini key  →  inked answer
+```
+
+---
+
+## Ignition
+
+| Step | What you do |
+| ---: | --- |
+| 1 | Grab [`SQA-OG-windows.zip`](https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest) |
+| 2 | Unzip anywhere. Double-click `SQA-OG.exe` |
+| 3 | Browser opens at **http://127.0.0.1:8001** |
+| 4 | Settings → **Get Free API Key** → paste. That key is for *answers*, never for OCR |
+| 5 | Indexing → drop PDFs → **Start Indexing** |
+| 6 | Wait for `Saved N vectors` and a non-zero **Indexed** count. Then ask |
+
+Need more disk? **Settings → Knowledge base location** → click `D:` / `E:` or type `D:\SQA-OG` → **Apply location**.
+
+Field notes: **[DESKTOP.md](DESKTOP.md)**
+
+---
+
+## How the plant is laid out
+
+| Station | Lives where |
+| --- | --- |
+| App + UI | The `.exe` (FastAPI serves the built React app) |
+| Vectors | `chroma_db` on **your** drive |
+| Originals | `uploads` |
+| Figures | `images` |
+| Resume marks | `processed_files.json` + per-page writes |
+| Answers | Your Gemini key, in this browser only |
+
+Default root: `%LOCALAPPDATA%\SQA-OG`  
+Updating the exe does **not** wipe that folder.
+
+---
+
+## What it actually does
+
+**Reads the page the way a checker would.** Born-digital PDFs are chunked from the text layer and tables. Scans go through two free local engines — RapidOCR (ONNX) and Tesseract — and the richer text wins. Close calls are merged. No cloud vision. No page image leaving the machine for OCR.
+
+**Does not throw away a 236-page flange spec.** Each page is embedded and saved as it finishes. Stop at 180, start again — those 180 pages stay.
+
+**Answers with a paper trail.** Hybrid search, citations, side figures (watermarks filtered), typewriter ink, a P&ID-style live rail. `Ctrl+K` if you live on the keyboard.
+
+**Travels.** Settings → Export KB pack. Carry `chroma_db` + images to another desk. Import. Ask.
+
+---
+
+## For people who keep the hood open
 
 ```bash
-pip install fastapi uvicorn chromadb sentence-transformers pymupdf python-pptx python-docx pytesseract pillow httpx python-multipart
+python run_app.py          # full app at :8001
 ```
-
-### Run the App
 
 ```bash
-python run_app.py
+# hot UI
+cd frontend && npm install && npm run dev     # :3000
+python run_app.py --no-browser                # API :8001
 ```
 
-Opens automatically at **http://127.0.0.1:8001**
-
-### Development Mode (Hot Reload)
-
-```bash
-# Terminal 1 — Backend
-python run_app.py --no-browser
-
-# Terminal 2 — Frontend (Vite)
-cd frontend
-npm install
-npm run dev
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging/build_windows.ps1
 ```
 
-Frontend available at **http://localhost:3000**
-
-`Ctrl+K` opens the command palette. A stable snapshot of the pre-upgrade app is tagged `stable-v2.0`.
-
-### Desktop app (recommended for a real knowledge base)
-
-Render free **wipes ChromaDB** on every sleep, crash, and redeploy. For hundreds of PDFs use the Windows build:
-
-**https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest**
-
-Unzip `SQA-OG-windows.zip` → run `SQA-OG.exe`. The library lives in `%LOCALAPPDATA%\SQA-OG` and survives app updates. See **[DESKTOP.md](DESKTOP.md)**.
-
-### Deploy (free web demo)
-
-See **[DEPLOY.md](DEPLOY.md)** for the click-by-click path.
-
-- **Vercel Hobby** hosts the Vite frontend.
-- **Render free Web Service** (native Python, no Docker) hosts FastAPI + Chroma + ONNX MiniLM so it fits 512 MB. Disk is ephemeral — treat this as a demo, not the system of record.
-- **Google Gemini** is the free LLM. Each visitor pastes their own key in Settings (stored in the browser, not on Render). Set `VITE_API_BASE=https://<service>.onrender.com/api` on Vercel.
-- Do not put Chroma or uploads on Vercel serverless. Do not proxy SSE/uploads through Vercel.
+Gemini is still the recommended *answer* engine (free AI Studio key). OCR never calls it. Mock / Ollama / llama.cpp are there if the yard has no outbound.
 
 ---
 
-## Architecture
+## What this is not
 
-```
-frontend/          React 18 + TypeScript + Vite + Tailwind CSS
-backend/
-  app/
-    api/routes/    FastAPI route handlers
-    core/          Config & logging
-    models/        Pydantic schemas
-    services/
-      document_parser/   PDF, PPTX, DOCX parsers
-      llm/               Gemini, Local, OpenAI, Mock providers
-      embeddings.py      SentenceTransformer (all-MiniLM-L6-v2)
-      vector_db.py       ChromaDB manager
-      rag.py             RAG query pipeline (SSE streaming)
-      indexer.py         Resumable background document indexer
-      history.py         SQLite query history
-run_app.py         Single-command launcher
-```
+It is not a Vercel site. It is not a Render demo. Those hosts wipe a knowledge base the moment they sleep. We stopped pretending that was a product.
 
----
+Ship the zip. Keep the library.
 
-## LLM Setup (Gemini — Recommended, Free)
-
-1. Go to Settings → Provider: **Google Gemini API**
-2. Click **"Get Free API Key"** → Sign in with Google at [AI Studio](https://aistudio.google.com/app/apikey)
-3. Paste your key, select a model (`gemini-2.5-flash` recommended)
-4. Click **Test** — status turns ✅ Connected
-5. Ask your O&G question!
-
----
-
-## Embedding Model
-
-`all-MiniLM-L6-v2` is a free, open-source local SentenceTransformer model that converts text into 384-dimensional vectors for semantic search. It runs entirely on your CPU/GPU — no internet required, no API key needed.
-
----
-
-## Portable Knowledge Base Distribution
-
-1. Build your knowledge base by indexing your O&G PDFs
-2. Copy the `chroma_db/` folder **and** its sibling `images/` folder to the target machine
-3. In Settings, set **ChromaDB Path** to the copied `chroma_db` folder
-4. Images are resolved by filename, so old absolute paths from another computer still work
-
----
-
-## Developer
-
-**Vikram** — [Dexterity Design Services](https://dexteritydesign.in)
-
----
-
-## License
-
-Internal proprietary software. All rights reserved.
+<p align="center"><sub>Internal instrument · Dexterity Design Services · all rights reserved</sub></p>

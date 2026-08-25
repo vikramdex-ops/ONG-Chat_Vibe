@@ -151,12 +151,9 @@ export const StoragePanel: React.FC<StoragePanelProps> = ({ onRelocated }) => {
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${snap.ocr.tesseract ? 'border-emerald-400/50 text-emerald-700 dark:text-emerald-300' : 'border-line text-fg-muted'}`}>
               Tesseract {snap.ocr.tesseract ? 'ready' : 'not installed'}
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${snap.ocr.gemini_vision ? 'border-emerald-400/50 text-emerald-700 dark:text-emerald-300' : 'border-line text-fg-muted'}`}>
-              Gemini Vision {snap.ocr.gemini_vision ? 'key on' : 'add key'}
-            </span>
           </div>
           <p className="text-[11px] text-fg-muted mt-2">
-            Scanned pages run RapidOCR and Tesseract together. If the page is still thin and you pasted a Gemini key, Vision reads the page last. Digital PDFs stay on the text layer.
+            Digital PDFs stay on the text layer. Scanned pages run RapidOCR and Tesseract together — no cloud vision.
           </p>
         </div>
       )}

@@ -81,3 +81,5 @@ def test_api_storage_endpoint():
     assert "ocr" in data
     assert "rapidocr" in data["ocr"]
     assert "layers" in data["ocr"]
+    assert "gemini_vision" not in data["ocr"]
+    assert not any("gemini" in str(layer).lower() for layer in data["ocr"]["layers"])

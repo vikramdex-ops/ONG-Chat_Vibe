@@ -270,7 +270,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, health, li
               2. Processing Configuration
             </h3>
             <p className="text-xs text-fg-muted mt-0.5">
-              Digital PDFs use the text layer first. Thin or scanned pages run RapidOCR + Tesseract, then Gemini Vision with your own key if the page is still thin. Each page is written as soon as it is embedded. Wait for “Saved N vectors” and a non-zero Indexed count before asking.
+              Digital PDFs use the text layer first. Thin or scanned pages run RapidOCR and Tesseract locally. Each page is written as soon as it is embedded. Wait for “Saved N vectors” and a non-zero Indexed count before asking.
             </p>
           </div>
 

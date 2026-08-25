@@ -45,9 +45,9 @@ def _native_page_text(page) -> str:
 
 
 def _ocr_page(page, native_text: str = "") -> Tuple[str, str]:
-    """Run RapidOCR + Tesseract (+ Gemini vision if the page is still thin)."""
+    """Run RapidOCR + Tesseract on a rendered page. No cloud vision."""
     arr = page_to_array(page, dpi=200)
-    result = ocr_multilayer(arr, allow_online=True, native_text=native_text)
+    result = ocr_multilayer(arr, native_text=native_text)
     return result.text, result.engine
 
 

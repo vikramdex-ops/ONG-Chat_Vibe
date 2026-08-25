@@ -186,9 +186,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           <span className="text-[11px] font-mono text-fg-muted">GitHub Releases</span>
         </div>
         <p className="text-xs text-fg-muted">
-          {(health?.details?.persistence === 'ephemeral')
-            ? 'This cloud disk is empty after every restart. The .exe keeps Chroma in %LOCALAPPDATA%\\SQA-OG so large libraries survive.'
-            : 'Each push rebuilds SQA-OG-windows.zip. Unzip, run SQA-OG.exe, knowledge base stays in your user folder.'}
+          The product is the Windows app. Unzip SQA-OG-windows.zip, run SQA-OG.exe. The knowledge base stays on this PC (or any drive you pick below).
         </p>
         <a
           href={health?.details?.desktop_releases_url || 'https://github.com/vikramdex-ops/ONG-Chat_Vibe/releases/tag/desktop-latest'}
@@ -222,7 +220,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           <span className="text-[11px] font-mono text-fg-muted">chroma_db + images</span>
         </div>
         <p className="text-xs text-fg-muted">
-          Export a zip of the vector store and extracted figures after a big index, or import a pack onto the desktop app. This is the only way to carry chunks off a cloud host.
+          Export a zip of the vector store and extracted figures after a big index, or import a pack onto another machine.
         </p>
         <div className="flex flex-wrap gap-2">
           <a

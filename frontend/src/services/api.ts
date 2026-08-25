@@ -238,7 +238,6 @@ export type StorageSnapshot = {
   ocr?: {
     rapidocr: boolean;
     tesseract: boolean;
-    gemini_vision: boolean;
     layers: string[];
   };
   success?: boolean;
