@@ -22,8 +22,10 @@ htmlcov/
 # Data — large runtime files not needed in repo
 backend/data/chroma_db/
 backend/data/images/
+backend/data/uploads/
 backend/data/processed_files.json
 backend/data/query_history.db
+backend/data/history.db
 backend/data/settings.json
 
 # Node
