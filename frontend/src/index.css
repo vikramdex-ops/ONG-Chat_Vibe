@@ -1,10 +1,40 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --surface: 248 250 252;
+  --surface-card: 255 255 255;
+  --surface-muted: 241 245 249;
+  --surface-input: 248 250 252;
+  --line: 226 232 240;
+  --fg: 15 23 42;
+  --fg-muted: 100 116 139;
+}
+
+.dark {
+  --surface: 2 6 23;
+  --surface-card: 15 23 42;
+  --surface-muted: 30 41 59;
+  --surface-input: 2 6 23;
+  --line: 30 41 59;
+  --fg: 248 250 252;
+  --fg-muted: 148 163 184;
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased overflow-x-hidden;
+    @apply bg-surface text-fg font-sans antialiased overflow-x-hidden;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-surface-card border border-line rounded-2xl shadow-sm dark:shadow-xl dark:shadow-black/40 backdrop-blur-md;
+  }
+
+  .field {
+    @apply w-full bg-surface-input border border-line rounded-xl px-3 py-2 text-xs text-fg placeholder-fg-muted focus:outline-none focus:border-blue-500 font-mono;
   }
 }
 
@@ -15,16 +45,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgb(var(--surface-muted) / 0.7);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
+  background: rgb(var(--fg-muted) / 0.45);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 1);
+  background: rgb(var(--fg-muted) / 0.7);
 }
 
 /* Engineering Glowing Badges */
@@ -43,58 +73,99 @@
 }
 
 /* Markdown typography inside Answer Card */
-.prose-dark {
-  @apply text-slate-200 text-sm leading-relaxed;
+.prose-answer {
+  @apply text-fg/90 text-sm leading-relaxed;
 }
 
-.prose-dark p {
-  @apply mb-3 text-slate-200 leading-relaxed;
+.prose-answer p {
+  @apply mb-3 text-fg/90 leading-relaxed;
 }
 
-.prose-dark p:last-child {
+.prose-answer p:last-child {
   @apply mb-0;
 }
 
-.prose-dark h1, .prose-dark h2, .prose-dark h3, .prose-dark h4 {
-  @apply font-semibold text-white mt-4 mb-2 tracking-tight;
+.prose-answer h1, .prose-answer h2, .prose-answer h3, .prose-answer h4 {
+  @apply font-semibold text-fg mt-4 mb-2 tracking-tight;
 }
 
-.prose-dark h1 { @apply text-lg; }
-.prose-dark h2 { @apply text-base text-blue-400; }
-.prose-dark h3 { @apply text-sm text-blue-300; }
+.prose-answer h1 { @apply text-lg; }
+.prose-answer h2 { @apply text-base text-blue-600 dark:text-blue-400; }
+.prose-answer h3 { @apply text-sm text-blue-700 dark:text-blue-300; }
 
-.prose-dark ul {
-  @apply list-disc list-outside pl-5 mb-3 space-y-1 text-slate-300;
+.prose-answer ul {
+  @apply list-disc list-outside pl-5 mb-3 space-y-1 text-fg/80;
 }
 
-.prose-dark ol {
-  @apply list-decimal list-outside pl-5 mb-3 space-y-1 text-slate-300;
+.prose-answer ol {
+  @apply list-decimal list-outside pl-5 mb-3 space-y-1 text-fg/80;
 }
 
-.prose-dark li {
+.prose-answer li {
   @apply leading-normal;
 }
 
-.prose-dark code {
-  @apply bg-slate-800 text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs;
+.prose-answer code {
+  @apply bg-surface-muted text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono text-xs;
 }
 
-.prose-dark pre {
-  @apply bg-slate-900 border border-slate-800 p-3 rounded-lg overflow-x-auto my-3 text-xs font-mono;
+.prose-answer pre {
+  @apply bg-surface-muted border border-line p-3 rounded-lg overflow-x-auto my-3 text-xs font-mono;
 }
 
-.prose-dark blockquote {
-  @apply border-l-2 border-blue-500 pl-3 italic text-slate-400 my-2;
+.prose-answer blockquote {
+  @apply border-l-2 border-blue-500 pl-3 italic text-fg-muted my-2;
 }
 
-.prose-dark table {
+.prose-answer table {
   @apply w-full text-left border-collapse my-3 text-xs;
 }
 
-.prose-dark th {
-  @apply bg-slate-800/80 p-2 font-semibold text-slate-200 border-b border-slate-700;
+.prose-answer th {
+  @apply bg-surface-muted p-2 font-semibold text-fg border-b border-line;
 }
 
-.prose-dark td {
-  @apply p-2 border-b border-slate-800/60 text-slate-300;
+.prose-answer td {
+  @apply p-2 border-b border-line/70 text-fg/80;
+}
+
+.prose-answer strong {
+  @apply text-fg font-semibold;
+}
+
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 180ms ease-out;
+  will-change: transform;
+}
+
+.pipeline-node {
+  transform-style: preserve-3d;
+}
+
+.pipeline-node-active {
+  animation: pipeline-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pipeline-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(37 99 235 / 0.25); }
+  50% { box-shadow: 0 10px 28px 0 rgb(37 99 235 / 0.28); }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  border-radius: 1px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(40px, 110vh, 0) rotate(720deg); opacity: 0.85; }
+}
+
+.brand-footer {
+  box-shadow: 0 10px 30px -18px rgb(37 99 235 / 0.45);
 }

@@ -1,5 +1,5 @@
-﻿import React, { useRef, useEffect } from 'react';
-import { Send, Trash2, Sparkles, CornerDownLeft, Loader2 } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Send, Trash2, Sparkles, Loader2 } from 'lucide-react';
 
 interface QuestionComposerProps {
   question: string;
@@ -27,7 +27,6 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-grow textarea height
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -45,13 +44,13 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl shadow-black/40 backdrop-blur-md">
+    <div className="panel p-4">
       <div className="flex items-center justify-between mb-2">
-        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+        <label className="text-xs font-semibold uppercase tracking-wider text-fg-muted font-mono flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-blue-500" />
           Enter your question about O&amp;G standards:
         </label>
-        <span className="text-[11px] text-slate-400 font-mono">
+        <span className="text-[11px] text-fg-muted font-mono">
           {question.length} characters
         </span>
       </div>
@@ -65,20 +64,19 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
           disabled={isLoading}
           placeholder="What are the hydrostatic testing requirements for API 650 tanks?"
           rows={3}
-          className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none leading-relaxed disabled:opacity-50"
+          className="w-full bg-surface-input border border-line rounded-xl px-4 py-3 text-fg placeholder-fg-muted text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none leading-relaxed disabled:opacity-50"
         />
       </div>
 
-      {/* Suggested Quick Questions */}
       {!question && (
         <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-slate-400 font-medium">Examples:</span>
+          <span className="text-[11px] text-fg-muted font-medium">Examples:</span>
           {SAMPLE_QUESTIONS.slice(0, 2).map((sample, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => setQuestion(sample)}
-              className="text-xs bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-blue-300 border border-slate-700/60 rounded-lg px-2.5 py-1 transition-colors truncate max-w-xs text-left"
+              className="text-xs bg-surface-muted hover:bg-line text-fg hover:text-blue-600 dark:hover:text-blue-300 border border-line rounded-lg px-2.5 py-1 transition-colors truncate max-w-xs text-left"
             >
               {sample}
             </button>
@@ -86,10 +84,9 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
         </div>
       )}
 
-      {/* Action Controls */}
-      <div className="mt-3.5 flex items-center justify-between pt-2 border-t border-slate-800/60">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono text-[10px]">
+      <div className="mt-3.5 flex items-center justify-between pt-2 border-t border-line">
+        <div className="flex items-center gap-2 text-xs text-fg-muted">
+          <kbd className="px-1.5 py-0.5 rounded bg-surface-muted text-fg border border-line font-mono text-[10px]">
             Ctrl + Enter
           </kbd>
           <span>to ask</span>
@@ -100,7 +97,7 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
             type="button"
             onClick={onClear}
             disabled={isLoading || (!question && true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-fg-muted hover:text-fg hover:bg-surface-muted disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear
@@ -113,7 +110,7 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
             className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md ${
               canAsk && !isLoading
                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/20 active:scale-[0.98]'
-                : 'bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700/60'
+                : 'bg-surface-muted text-fg-muted cursor-not-allowed border border-line'
             }`}
           >
             {isLoading ? (

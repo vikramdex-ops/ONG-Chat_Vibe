@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QuestionComposer } from './QuestionComposer';
 import { AnswerCard } from './AnswerCard';
 import { SourceCard } from './SourceCard';
 import { ImageGallery } from './ImageGallery';
 import { DocumentViewerModal } from '../viewer/DocumentViewerModal';
+import { PipelineVisualizer, PipelineStage } from './PipelineVisualizer';
 import { SourceContext, ImageResult, QueryResponse, HealthStatus } from '../../types';
 import { streamQuery, executeQuery } from '../../services/api';
 import { Layers } from 'lucide-react';
@@ -33,6 +34,19 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
   }, [initialQuestion]);
 
   const canAsk = question.trim().length > 0;
+
+  const pipelineStage: PipelineStage = error
+    ? 'error'
+    : isLoading && !sources.length
+    ? (statusMessage.toLowerCase().includes('generat') ? 'llm' : 'search')
+    : isLoading && sources.length > 0
+    ? (answer ? 'llm' : 'context')
+    : answer
+    ? 'complete'
+    : 'idle';
+
+  const provider = (health?.details?.llm_provider as string | undefined) || 'gemini';
+  const providerLabel = provider === 'gemini' ? 'Gemini LLM' : provider === 'mock' ? 'Mock LLM' : 'LLM';
 
   const handleClear = () => {
     setQuestion('');
@@ -99,7 +113,6 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Question Composer */}
       <QuestionComposer
         question={question}
         setQuestion={setQuestion}
@@ -109,9 +122,9 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
         canAsk={canAsk}
       />
 
-      {/* Main Grid: Answer & Relevant Images */}
+      <PipelineVisualizer stage={pipelineStage} providerLabel={providerLabel} topK={topK} />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Answer Card */}
         <div className="lg:col-span-2">
           <AnswerCard
             answer={answer}
@@ -123,24 +136,22 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
           />
         </div>
 
-        {/* Right 1 Col: Relevant Images Gallery */}
         <div className="lg:col-span-1">
           <ImageGallery images={images} />
         </div>
       </div>
 
-      {/* Source Context Cards Section */}
       {sources.length > 0 && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl shadow-black/40 backdrop-blur-md">
-          <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-800/80">
+        <div className="panel p-5">
+          <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-line">
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-400" />
-              <h3 className="font-semibold text-sm text-white">Retrieved Source Context</h3>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+              <Layers className="w-4 h-4 text-blue-500" />
+              <h3 className="font-semibold text-sm text-fg">Retrieved Source Context</h3>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                 {sources.length} {sources.length === 1 ? 'clause' : 'clauses'}
               </span>
             </div>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-fg-muted">
               Click &quot;Open Source&quot; to inspect document context
             </span>
           </div>
@@ -158,7 +169,6 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
         </div>
       )}
 
-      {/* Document Inspection Modal */}
       <DocumentViewerModal
         source={selectedSourceForViewer}
         onClose={() => setSelectedSourceForViewer(null)}

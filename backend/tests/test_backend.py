@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import os
 import sys
 from pathlib import Path
@@ -91,3 +91,19 @@ def test_vector_db_service_count():
     count = vector_db_service.count()
     assert isinstance(count, int)
     assert count >= 0
+
+
+def test_factory_returns_gemini():
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.gemini_llm import GeminiLLMProvider
+
+    provider = get_llm_provider("gemini")
+    assert isinstance(provider, GeminiLLMProvider)
+
+
+def test_factory_returns_mock():
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.mock_llm import MockLLMProvider
+
+    provider = get_llm_provider("mock")
+    assert isinstance(provider, MockLLMProvider)

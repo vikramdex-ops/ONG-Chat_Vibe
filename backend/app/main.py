@@ -5,9 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from fastapi import HTTPException
+
 from app.core.config import IMAGES_DIR, BASE_DIR, settings
 from app.core.logging_service import app_logger
 from app.api.routes import health, query, documents, index, settings as settings_routes, history
+from app.services.image_resolver import resolve_image_file
 
 app = FastAPI(
     title="SQA-O&G API",
@@ -23,9 +26,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount extracted images static directory
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/api/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
+
+
+@app.get("/api/images/{filename}")
+async def serve_portable_image(filename: str):
+    """Serve extracted figures from the active images folder or a portable KB copy."""
+    path = resolve_image_file(filename)
+    if not path:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(str(path))
+
 
 # Register API Routers
 app.include_router(health.router)
@@ -68,4 +79,4 @@ async def on_startup():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { AskView } from './components/ask/AskView';
@@ -44,8 +44,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
-      {/* Top Telemetry Header */}
+    <div className="min-h-screen bg-surface flex flex-col font-sans">
       <Header
         health={health}
         activeTab={activeTab}
@@ -53,17 +52,14 @@ export const App: React.FC = () => {
         topK={settings?.top_k || 3}
       />
 
-      {/* Main Workspace Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Navigation */}
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           documentCount={documentCount}
         />
 
-        {/* Dynamic Content Pane */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-gradient-to-b from-slate-950 via-slate-900/40 to-slate-950">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-gradient-to-b from-surface via-blue-50/40 to-surface dark:via-slate-900/40">
           {activeTab === 'ask' && (
             <AskView
               health={health}

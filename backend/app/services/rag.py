@@ -1,4 +1,4 @@
-﻿import time
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, AsyncGenerator
 from app.core.config import settings
@@ -7,6 +7,7 @@ from app.models.schemas import SourceContext, ImageResult, QueryResponse
 from app.services.embeddings import embedding_service
 from app.services.vector_db import vector_db_service
 from app.services.llm.factory import get_llm_provider
+from app.services.image_resolver import resolve_image_file
 
 
 def construct_prompt(question: str, sources: List[SourceContext]) -> str:
@@ -34,23 +35,26 @@ def construct_prompt(question: str, sources: List[SourceContext]) -> str:
 
 
 def resolve_images(sources: List[SourceContext]) -> List[ImageResult]:
-    """Resolves and dedupes all associated images from retrieved source chunks into safe ImageResults."""
+    """Resolve and dedupe images by filename so a copied knowledge base still works."""
     image_map: Dict[str, ImageResult] = {}
-    
+
     for s in sources:
         for img_path_str in s.image_paths:
             p = Path(img_path_str)
             filename = p.name
-            img_id = p.stem
-            if filename not in image_map:
-                image_map[filename] = ImageResult(
-                    id=img_id,
-                    url=f"/api/images/{filename}",
-                    source=s.source,
-                    page=s.page,
-                    filename=filename
-                )
-                
+            if not filename or filename in image_map:
+                continue
+            # Prefer a file that exists on this machine (portable lookup).
+            resolved = resolve_image_file(img_path_str)
+            display_name = resolved.name if resolved else filename
+            image_map[filename] = ImageResult(
+                id=Path(display_name).stem,
+                url=f"/api/images/{display_name}",
+                source=s.source,
+                page=s.page,
+                filename=display_name,
+            )
+
     return sorted(list(image_map.values()), key=lambda x: (x.source, x.page))
 
 

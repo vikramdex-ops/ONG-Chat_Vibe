@@ -58,3 +58,47 @@ def test_api_query_mock_flow():
     assert "context" in data
     assert "images" in data
     assert "db_count" in data
+
+
+def test_api_test_llm_gemini_missing_key():
+    res = client.post(
+        "/api/settings/test-llm",
+        json={"url": "", "provider": "gemini", "api_key": ""},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert "key" in data["message"].lower()
+
+
+def test_api_test_llm_mock():
+    res = client.post(
+        "/api/settings/test-llm",
+        json={"url": "", "provider": "mock"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["status"] == "connected"
+
+
+def test_api_save_gemini_settings():
+    from app.core.config import settings_manager, AppSettings
+
+    original = settings_manager.current.model_copy(deep=True)
+    try:
+        payload = original.model_dump()
+        payload.update({
+            "llm_provider": "gemini",
+            "llm_server_url": "",
+            "llm_api_key": "test-key",
+            "llm_model_name": "default",
+        })
+        res = client.put("/api/settings", json=payload)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["llm_provider"] == "gemini"
+        assert data["llm_model_name"] == "gemini-2.5-flash"
+        assert data["llm_server_url"].startswith("https://")
+    finally:
+        settings_manager.save_settings(original)

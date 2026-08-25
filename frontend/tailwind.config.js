@@ -8,6 +8,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        surface: {
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          card: 'rgb(var(--surface-card) / <alpha-value>)',
+          muted: 'rgb(var(--surface-muted) / <alpha-value>)',
+          input: 'rgb(var(--surface-input) / <alpha-value>)',
+        },
+        line: 'rgb(var(--line) / <alpha-value>)',
+        fg: {
+          DEFAULT: 'rgb(var(--fg) / <alpha-value>)',
+          muted: 'rgb(var(--fg-muted) / <alpha-value>)',
+        },
         og: {
           50: '#f0f7ff',
           100: '#e0effe',

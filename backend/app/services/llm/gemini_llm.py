@@ -11,8 +11,8 @@ class GeminiLLMProvider(BaseLLMProvider):
     """Integrates directly with Google Gemini REST API using the user's free API key."""
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.llm_api_key or ""
-        self.model = model or settings.llm_model_name or "gemini-2.5-flash"
+        self.api_key = api_key or settings.llm_api_key or settings.gemini_api_key or ""
+        self.model = model or settings.llm_model_name or settings.gemini_model_name or "gemini-2.5-flash"
         # Normalize model name if user typed prefix
         if self.model.startswith("models/"):
             self.model = self.model.replace("models/", "")

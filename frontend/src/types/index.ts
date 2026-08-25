@@ -1,4 +1,4 @@
-﻿export interface SourceContext {
+export interface SourceContext {
   id: string;
   source: string;
   page: number;
@@ -82,6 +82,8 @@ export interface AppSettings {
   llm_server_url: string;
   llm_api_key?: string | null;
   llm_model_name: string;
+  gemini_api_key?: string | null;
+  gemini_model_name?: string | null;
   llm_max_tokens: number;
   llm_temperature: number;
   llm_stop_strings: string[];

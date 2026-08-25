@@ -1,4 +1,4 @@
-﻿import {
+import {
   HealthStatus,
   AppSettings,
   QueryResponse,
@@ -36,11 +36,16 @@ export async function updateSettings(settings: AppSettings): Promise<AppSettings
   return res.json();
 }
 
-export async function testLLM(url: string, provider: string = 'local', apiKey: string = ''): Promise<{ success: boolean; message: string }> {
+export async function testLLM(
+  url: string,
+  provider: string = 'local',
+  apiKey: string = '',
+  model: string = ''
+): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${API_BASE}/settings/test-llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, provider, api_key: apiKey })
+    body: JSON.stringify({ url, provider, api_key: apiKey, model })
   });
   return res.json();
 }

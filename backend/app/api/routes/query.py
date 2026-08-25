@@ -1,7 +1,7 @@
-﻿import json
+import json
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
-from app.models.schemas import QueryRequest, QueryResponse
+from app.models.schemas import QueryRequest, QueryResponse, SourceContext, ImageResult
 from app.services.rag import rag_service
 from app.services.history import history_service
 from app.core.logging_service import app_logger
@@ -48,6 +48,19 @@ async def stream_query_sqa(request: QueryRequest):
                 question=request.question.strip(),
                 top_k=request.top_k
             ):
+                if event.get("event") == "complete":
+                    try:
+                        data = event.get("data") or {}
+                        sources = [SourceContext(**s) for s in data.get("context", [])]
+                        images = [ImageResult(**img) for img in data.get("images", [])]
+                        history_service.add_entry(
+                            question=request.question.strip(),
+                            answer=data.get("answer", ""),
+                            sources=sources,
+                            images=images,
+                        )
+                    except Exception as hist_err:
+                        app_logger.warning("QueryStreamAPI", f"Failed to record history: {hist_err}")
                 yield {
                     "event": event["event"],
                     "data": json.dumps(event["data"])
