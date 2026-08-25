@@ -30,6 +30,7 @@ backend/data/query_history.db
 backend/data/history.db
 backend/data/settings.json
 backend/data/chunk_snapshot.jsonl
+backend/data/storage.json
 
 # Desktop packaging output
 dist-desktop/

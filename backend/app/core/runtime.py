@@ -71,10 +71,17 @@ def runtime_info() -> Dict[str, Any]:
         kind = "cloud"
     else:
         kind = "local"
+    data_dir = str(resolve_data_dir())
+    try:
+        from app.core.storage import current_paths
+
+        data_dir = current_paths()["data"]
+    except Exception:
+        pass
     return {
         "runtime": kind,
         "frozen": is_frozen(),
         "persistence": "ephemeral" if ephemeral else "durable",
-        "data_dir": str(resolve_data_dir()),
+        "data_dir": data_dir,
         "desktop_releases_url": DESKTOP_RELEASES_URL,
     }

@@ -67,8 +67,14 @@ class ProcessedFilesTracker:
                 self.processed_files.discard(f)
             self._save()
 
+    def remount(self, log_path: Path) -> None:
+        with self._lock:
+            self.log_path = log_path
+            self.processed_files = self._load()
+
     def _save(self):
         try:
+            Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
             with open(self.log_path, "w", encoding="utf-8") as f:
                 json.dump(list(self.processed_files), f, indent=2)
         except Exception as e:
@@ -149,6 +155,11 @@ class IndexingService:
             return False
         if self._is_running:
             self._force_idle("Recovered a stale indexer lock")
+
+        from app.core.request_context import request_api_key
+        from app.services.document_parser.ocr_engine import set_index_ocr_key
+
+        set_index_ocr_key(request_api_key())
 
         self._job_id += 1
         job_id = self._job_id

@@ -4,17 +4,21 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
 
-from app.core.runtime import backend_dir, resolve_data_dir
+from app.core.runtime import backend_dir
+from app.core.storage import (
+    DATA_DIR,
+    UPLOADS_DIR,
+    IMAGES_DIR,
+    CHROMA_DIR,
+    SETTINGS_FILE,
+    PROCESSED_FILES_LOG,
+    HISTORY_DB_PATH,
+    CHUNK_SNAPSHOT_PATH,
+    ensure_storage,
+)
 
 BASE_DIR = backend_dir()
-DATA_DIR = resolve_data_dir()
-UPLOADS_DIR = DATA_DIR / "uploads"
-IMAGES_DIR = DATA_DIR / "images"
-CHROMA_DIR = DATA_DIR / "chroma_db"
-SETTINGS_FILE = DATA_DIR / "settings.json"
-PROCESSED_FILES_LOG = DATA_DIR / "processed_files.json"
-HISTORY_DB_PATH = DATA_DIR / "history.db"
-CHUNK_SNAPSHOT_PATH = DATA_DIR / "chunk_snapshot.jsonl"
+ensure_storage()
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
 
@@ -41,11 +45,6 @@ def cors_allow_origins() -> List[str]:
         return ["*"]
     origins = [part.strip() for part in raw.split(",") if part.strip()]
     return origins or ["*"]
-
-# Ensure directories exist
-for directory in [DATA_DIR, UPLOADS_DIR, IMAGES_DIR, CHROMA_DIR]:
-    directory.mkdir(parents=True, exist_ok=True)
-
 
 class AppSettings(BaseModel):
     # Vector Database

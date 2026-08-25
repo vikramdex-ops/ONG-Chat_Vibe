@@ -216,10 +216,57 @@ export async function deleteDocument(filename: string): Promise<any> {
   return res.json();
 }
 
+export type StorageSnapshot = {
+  data_dir: string;
+  uploads_dir: string;
+  images_dir: string;
+  chroma_db_path: string;
+  history_db: string;
+  used_mb: number;
+  disk: { free_gb: number | null; total_gb: number | null };
+  volumes: Array<{
+    id: string;
+    path: string;
+    label: string;
+    free_gb: number;
+    total_gb: number;
+    suggested: string;
+  }>;
+  ephemeral: boolean;
+  can_relocate: boolean;
+  frozen: boolean;
+  ocr?: {
+    rapidocr: boolean;
+    tesseract: boolean;
+    gemini_vision: boolean;
+    layers: string[];
+  };
+  success?: boolean;
+};
+
+export async function getStorage(): Promise<StorageSnapshot> {
+  const res = await fetch(`${API_BASE}/storage`);
+  if (!res.ok) throw new Error('Failed to load storage locations');
+  return res.json();
+}
+
+export async function relocateStorage(dataDir: string, moveExisting = true): Promise<StorageSnapshot> {
+  const res = await fetch(`${API_BASE}/storage/relocate`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ data_dir: dataDir, move_existing: moveExisting }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Could not change storage location' }));
+    throw new Error(err.detail || 'Could not change storage location');
+  }
+  return res.json();
+}
+
 export async function startIndexing(req?: { directory_path?: string; worker_count?: number; chunk_size?: number; chunk_overlap?: number }): Promise<IndexStatus> {
   const res = await fetch(`${API_BASE}/index/start`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(),
     body: JSON.stringify(req || {})
   });
   if (!res.ok) {

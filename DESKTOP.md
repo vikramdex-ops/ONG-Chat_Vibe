@@ -20,7 +20,9 @@ File: `SQA-OG-windows.zip`
 
 ## Where the knowledge base lives
 
-`%LOCALAPPDATA%\SQA-OG`
+Default: `%LOCALAPPDATA%\SQA-OG`
+
+To put it on another drive: **Settings → Knowledge base location** → click `D:` / `E:` or type `D:\SQA-OG` → **Apply location**. Tick **Copy existing files** if you already indexed. The path is remembered in `%LOCALAPPDATA%\SQA-OG\storage.json` so the next launch opens the same folder.
 
 | Folder | Contents |
 | --- | --- |
@@ -35,7 +37,7 @@ Updating the `.exe` does **not** wipe this folder. Uninstall = delete the zip fo
 ## Large libraries (hundreds of PDFs / thousands of pages)
 
 - Vectors are written **per page**. If the app stops at page 180 of 236, start again — those 180 pages stay.
-- Digital PDFs use the text layer. Scanned pages use ONNX OCR.
+- Digital PDFs use the text layer. Scanned pages run RapidOCR + Tesseract, then Gemini Vision (your key) if the page is still thin.
 - Keep the console window open while indexing. Closing it stops the server.
 - Export a KB pack from Settings after a big index as an off-machine backup.
 

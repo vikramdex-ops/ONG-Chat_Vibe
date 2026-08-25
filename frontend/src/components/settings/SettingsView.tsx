@@ -20,6 +20,7 @@ import { AppSettings, HealthStatus } from '../../types';
 import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
 import { loadUserLlm, saveUserLlm } from '../../lib/userLlm';
+import { StoragePanel } from './StoragePanel';
 
 interface SettingsViewProps {
   health: HealthStatus | null;
@@ -199,6 +200,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           Download latest .exe zip
         </a>
       </div>
+
+      <StoragePanel
+        onRelocated={async () => {
+          try {
+            const s = await getSettings();
+            setFormData(s);
+            if (onSettingsSaved) onSettingsSaved(s);
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
 
       <div className="panel p-6 space-y-4 border-2 border-emerald-400/60">
         <div className="flex items-center justify-between pb-3 border-b border-line">

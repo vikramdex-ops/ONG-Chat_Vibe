@@ -1,71 +1,54 @@
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable, Set, Iterable
+from typing import List, Dict, Any, Optional, Callable, Set, Iterable, Tuple
 import fitz  # PyMuPDF
-import numpy as np
 from app.core.config import IMAGES_DIR, settings
 from app.core.logging_service import app_logger
 from app.services.vector_db import sanitize_filename
-from app.services.document_parser.ocr_engine import ocr_image_array
-
-try:
-    import pytesseract
-except ImportError:
-    pytesseract = None
-
-_tesseract_available: Optional[bool] = None
+from app.services.document_parser.ocr_engine import (
+    ocr_multilayer,
+    page_to_array,
+    score_text,
+)
 
 
 class IndexingCancelled(Exception):
     """Raised when the user stops indexing mid-document."""
 
 
-def tesseract_available() -> bool:
-    global _tesseract_available
-    if _tesseract_available is not None:
-        return _tesseract_available
-    if pytesseract is None:
-        _tesseract_available = False
-        return False
-    try:
-        pytesseract.get_tesseract_version()
-        _tesseract_available = True
-    except Exception:
-        _tesseract_available = False
-        return False
-    return _tesseract_available
-
-
 def _native_page_text(page) -> str:
     """Pull the PDF text layer. This is the primary chunk source — not OCR."""
     text = (page.get_text("text", sort=True) or "").strip()
-    if len(text) >= settings.ocr_char_threshold:
-        return text
     blocks = page.get_text("blocks") or []
     parts = []
     for block in blocks:
         if len(block) >= 5 and isinstance(block[4], str) and block[4].strip():
             parts.append(block[4].strip())
     joined = "\n".join(parts).strip()
-    return joined if len(joined) > len(text) else text
+    if score_text(joined) > score_text(text):
+        text = joined
+    try:
+        finder = getattr(page, "find_tables", None)
+        if finder:
+            tables = finder()
+            rows = []
+            for table in getattr(tables, "tables", []) or []:
+                for row in table.extract() or []:
+                    cells = [str(c).strip() for c in row if c and str(c).strip()]
+                    if cells:
+                        rows.append(" | ".join(cells))
+            table_text = "\n".join(rows).strip()
+            if table_text and score_text(table_text) > 40:
+                text = (text + "\n" + table_text).strip() if text else table_text
+    except Exception:
+        pass
+    return text
 
 
-def _ocr_page(page) -> str:
-    """Fallback for scanned / image-only pages. Tesseract if present, else ONNX RapidOCR."""
-    pix = page.get_pixmap(dpi=150)
-    if tesseract_available():
-        try:
-            from PIL import Image
-            import io
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
-            return (pytesseract.image_to_string(img, lang="eng") or "").strip()
-        except Exception:
-            pass
-    arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-    if pix.n == 4:
-        arr = arr[:, :, :3]
-    elif pix.n == 1:
-        arr = np.repeat(arr, 3, axis=2)
-    return ocr_image_array(arr)
+def _ocr_page(page, native_text: str = "") -> Tuple[str, str]:
+    """Run RapidOCR + Tesseract (+ Gemini vision if the page is still thin)."""
+    arr = page_to_array(page, dpi=200)
+    result = ocr_multilayer(arr, allow_online=True, native_text=native_text)
+    return result.text, result.engine
 
 
 def parse_pdf_document(
@@ -141,15 +124,22 @@ def parse_pdf_document(
             except Exception as img_err:
                 app_logger.warning("PDFParser", f"Page {page_num + 1}: Error scanning images: {img_err}", document=file_path.name)
 
-            if len(page_text) < settings.ocr_char_threshold:
+            native_score = score_text(page_text)
+            needs_ocr = len(page_text) < settings.ocr_char_threshold or native_score < 90
+            if needs_ocr:
                 if should_stop and should_stop():
                     doc.close()
                     raise IndexingCancelled(f"Stopped while reading {file_path.name} at page {page_num + 1}")
-                ocr_text = _ocr_page(page)
-                if len(ocr_text) > len(page_text):
+                ocr_text, ocr_engine = _ocr_page(page, native_text=page_text)
+                if score_text(ocr_text) > native_score and len(ocr_text) > len(page_text):
                     page_text = ocr_text
-                    source = "ocr"
+                    source = ocr_engine or "ocr"
                     ocr_pages += 1
+                    app_logger.info(
+                        "PDFParser",
+                        f"Page {page_num + 1}: OCR layers produced {len(page_text)} chars via {source}.",
+                        document=file_path.name,
+                    )
                 elif page_text:
                     text_pages += 1
                 else:

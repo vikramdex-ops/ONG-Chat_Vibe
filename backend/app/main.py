@@ -10,7 +10,7 @@ from app.core.config import IMAGES_DIR, settings, cors_allow_origins
 from app.core.runtime import frontend_dist, runtime_info
 from app.core.logging_service import app_logger
 from app.core.request_context import set_request_llm, reset_request_llm
-from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace
+from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace, storage
 from app.services.image_resolver import resolve_image_file
 
 app = FastAPI(
@@ -62,6 +62,7 @@ app.include_router(index.router)
 app.include_router(settings_routes.router)
 app.include_router(history.router)
 app.include_router(workspace.router)
+app.include_router(storage.router)
 
 # Mount built frontend if available (Vite dist, or the copy bundled inside the .exe)
 FRONTEND_DIST = frontend_dist()

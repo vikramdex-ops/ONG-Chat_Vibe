@@ -15,6 +15,11 @@ class HistoryService:
         self.db_path = str(db_path)
         self._init_db()
 
+    def remount(self, db_path: Path) -> None:
+        self.db_path = str(db_path)
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
