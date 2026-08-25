@@ -1,4 +1,4 @@
-﻿from typing import Optional, List
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import IndexStatus, IndexStartRequest
 from app.core.logging_service import app_logger, LogEntry
@@ -10,22 +10,22 @@ router = APIRouter(prefix="/api/index", tags=["Indexing"])
 @router.post("/start", response_model=IndexStatus)
 async def start_indexing_job(req: IndexStartRequest):
     current = indexing_service.get_status()
-    if current.is_running:
-        raise HTTPException(status_code=400, detail="Indexing job is already running.")
+    if current.is_running and current.state != "stopping":
+        raise HTTPException(status_code=400, detail="Indexing job is already running. Click Force stop first.")
 
     started = indexing_service.start_indexing(req)
     if not started:
-        raise HTTPException(status_code=500, detail="Failed to start indexing worker.")
+        raise HTTPException(
+            status_code=400,
+            detail="Indexer is still winding down. Click Force stop, then Start again.",
+        )
 
     return indexing_service.get_status()
 
 
 @router.post("/stop", response_model=IndexStatus)
-async def stop_indexing_job():
-    stopped = indexing_service.stop_indexing()
-    if not stopped:
-        raise HTTPException(status_code=400, detail="No active indexing job to stop.")
-    return indexing_service.get_status()
+async def stop_indexing_job(force: bool = False):
+    return indexing_service.stop_indexing(force=force)
 
 
 @router.get("/status", response_model=IndexStatus)

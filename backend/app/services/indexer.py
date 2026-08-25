@@ -21,7 +21,7 @@ from app.services.vector_db import (
 )
 from app.services.embeddings import embedding_service
 from app.services.document_parser.chunker import simple_chunker
-from app.services.document_parser.pdf_parser import parse_pdf_document
+from app.services.document_parser.pdf_parser import parse_pdf_document, IndexingCancelled
 from app.services.document_parser.pptx_parser import parse_pptx_document
 from app.services.document_parser.docx_parser import parse_docx_document
 from app.services.image_resolver import to_portable_image_refs
@@ -89,6 +89,7 @@ class IndexingService:
                 cls._instance = super(IndexingService, cls).__new__(cls)
                 cls._instance._is_running = False
                 cls._instance._stop_requested = False
+                cls._instance._job_id = 0
                 cls._instance._thread: Optional[threading.Thread] = None
                 cls._instance._status = IndexStatus()
                 cls._instance._status_lock = threading.Lock()
@@ -96,27 +97,65 @@ class IndexingService:
 
     def get_status(self) -> IndexStatus:
         with self._status_lock:
-            return self._status.model_copy()
+            status = self._status.model_copy()
+        if status.state == "stopping" and not self._is_running:
+            self._mark_stopped("Stopped by user")
+            with self._status_lock:
+                return self._status.model_copy()
+        return status
 
-    def stop_indexing(self) -> bool:
+    def _mark_stopped(self, message: str) -> None:
+        with self._status_lock:
+            self._status.is_running = False
+            self._status.state = "stopped"
+            self._status.current_operation = message
+
+    def _force_idle(self, message: str) -> None:
+        """Abandon a stuck job so Start Indexing works again."""
+        self._job_id += 1
+        self._stop_requested = False
+        self._is_running = False
+        self._mark_stopped(message)
+        app_logger.warning("Indexer", message)
+
+    def stop_indexing(self, force: bool = False) -> IndexStatus:
+        already_stopping = False
+        with self._status_lock:
+            already_stopping = self._status.state == "stopping"
+
+        if force or already_stopping:
+            self._force_idle("Indexing force-stopped. You can start again.")
+            return self.get_status()
+
         if not self._is_running:
-            return False
+            self._mark_stopped("No active indexing job")
+            return self.get_status()
+
         app_logger.warning("Indexer", "Stop indexing requested by user.")
         self._stop_requested = True
         with self._status_lock:
             self._status.state = "stopping"
-            self._status.current_operation = "Stopping background workers..."
-        return True
+            self._status.is_running = True
+            self._status.current_operation = "Stopping — finishing the current page..."
+        return self.get_status()
+
+    def _should_stop(self, job_id: int) -> bool:
+        return self._stop_requested or job_id != self._job_id
 
     def start_indexing(self, req: IndexStartRequest) -> bool:
-        if self._is_running:
+        thread = self._thread
+        if self._is_running and thread is not None and thread.is_alive():
             return False
+        if self._is_running:
+            self._force_idle("Recovered a stale indexer lock")
 
+        self._job_id += 1
+        job_id = self._job_id
         self._is_running = True
         self._stop_requested = False
         self._thread = threading.Thread(
             target=self._run_indexing_job,
-            args=(req,),
+            args=(req, job_id),
             daemon=True
         )
         self._thread.start()
@@ -159,14 +198,24 @@ class IndexingService:
         self,
         file_path: Path,
         chunk_size: int,
-        chunk_overlap: int
+        chunk_overlap: int,
+        job_id: int = 0,
     ) -> List[Dict[str, Any]]:
         """Extract pages and create text chunks for a single file."""
         ext = file_path.suffix.lower()
         file_name = file_path.name
-        
+
+        def on_page(page: int, total: int) -> None:
+            with self._status_lock:
+                self._status.current_page = page
+                self._status.current_operation = f"Reading {file_name} · page {page}/{total}"
+
         if ext == ".pdf":
-            pages_data = parse_pdf_document(file_path)
+            pages_data = parse_pdf_document(
+                file_path,
+                should_stop=lambda: self._should_stop(job_id),
+                on_page=on_page,
+            )
         elif ext == ".pptx":
             pages_data = parse_pptx_document(file_path)
         elif ext == ".docx":
@@ -204,12 +253,15 @@ class IndexingService:
 
         return chunks
 
-    def _run_indexing_job(self, req: IndexStartRequest):
+    def _run_indexing_job(self, req: IndexStartRequest, job_id: int = 0):
         start_time = time.time()
         target_dir = Path(req.directory_path) if req.directory_path else UPLOADS_DIR
         worker_count = req.worker_count or settings.worker_count
         chunk_size = req.chunk_size or settings.chunk_size
         chunk_overlap = req.chunk_overlap or settings.chunk_overlap
+
+        def still_current() -> bool:
+            return not self._should_stop(job_id)
 
         app_logger.info("Indexer", f"Starting indexing scan in directory: {target_dir}")
         with self._status_lock:
@@ -255,12 +307,9 @@ class IndexingService:
             accumulated_chunks = []
 
             for index, file_path in enumerate(pending_files):
-                if self._stop_requested:
+                if not still_current():
                     app_logger.warning("Indexer", "Indexing stopped by user during file processing.")
-                    with self._status_lock:
-                        self._status.state = "stopped"
-                        self._status.is_running = False
-                        self._status.current_operation = "Stopped by user"
+                    self._mark_stopped("Stopped by user")
                     return
 
                 file_name = file_path.name
@@ -290,14 +339,20 @@ class IndexingService:
                 app_logger.info("Indexer", f"Processing {file_name}...", document=file_name)
 
                 try:
-                    file_chunks = self._process_single_file(file_path, chunk_size, chunk_overlap)
+                    file_chunks = self._process_single_file(file_path, chunk_size, chunk_overlap, job_id=job_id)
+                    if not still_current():
+                        self._mark_stopped("Stopped by user")
+                        return
                     if file_chunks:
                         accumulated_chunks.extend(file_chunks)
                         app_logger.success("Indexer", f"Extracted {len(file_chunks)} chunks from {file_name}", document=file_name)
 
-                    # Mark file as successfully processed
                     tracker.mark_processed(str(file_path))
 
+                except IndexingCancelled:
+                    app_logger.warning("Indexer", f"Stopped while processing {file_name}", document=file_name)
+                    self._mark_stopped("Stopped by user")
+                    return
                 except Exception as file_err:
                     app_logger.error("Indexer", f"Error processing {file_name}: {file_err}", document=file_name)
 
@@ -325,15 +380,21 @@ class IndexingService:
                 self._status.estimated_remaining_seconds = 0.0
                 self._status.total_chunks_indexed = total_chunks_added
 
+        except IndexingCancelled:
+            self._mark_stopped("Stopped by user")
         except Exception as e:
-            app_logger.error("Indexer", f"Indexing job failed: {e}")
-            with self._status_lock:
-                self._status.is_running = False
-                self._status.state = "failed"
-                self._status.error = str(e)
-                self._status.current_operation = f"Failed: {e}"
+            if not still_current():
+                self._mark_stopped("Stopped by user")
+            else:
+                app_logger.error("Indexer", f"Indexing job failed: {e}")
+                with self._status_lock:
+                    self._status.is_running = False
+                    self._status.state = "failed"
+                    self._status.error = str(e)
+                    self._status.current_operation = f"Failed: {e}"
         finally:
-            self._is_running = False
+            if job_id == self._job_id:
+                self._is_running = False
 
     def _flush_chunks(self, chunks: List[Dict[str, Any]]) -> int:
         """Embeds and writes chunk batch to ChromaDB."""

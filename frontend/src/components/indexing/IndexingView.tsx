@@ -73,7 +73,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
     };
 
     fetchStatusAndLogs();
-    const interval = setInterval(fetchStatusAndLogs, status.is_running ? 1000 : 3000);
+    const interval = setInterval(fetchStatusAndLogs, (status.is_running || status.state === 'stopping') ? 1000 : 3000);
     return () => clearInterval(interval);
   }, [status.is_running, logFilter, onIndexingFinished]);
 
@@ -109,12 +109,15 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
 
   const handleStop = async () => {
     try {
-      const s = await stopIndexing();
+      const force = status.state === 'stopping';
+      const s = await stopIndexing(force);
       setStatus(s);
     } catch (e: any) {
       alert(e.message || 'Failed to stop indexing');
     }
   };
+
+  const isBusy = status.is_running || status.state === 'stopping';
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -261,14 +264,14 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
           </div>
 
           <div className="flex items-center gap-3">
-            {status.is_running ? (
+            {isBusy ? (
               <button
                 type="button"
                 onClick={handleStop}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20 active:scale-[0.98] transition-all"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
-                <span>Stop Indexing</span>
+                <span>{status.state === 'stopping' ? 'Force stop' : 'Stop Indexing'}</span>
               </button>
             ) : (
               <button
@@ -290,7 +293,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               type="number"
               min={1}
               max={16}
-              disabled={status.is_running}
+              disabled={isBusy}
               value={workerCount}
               onChange={(e) => setWorkerCount(parseInt(e.target.value) || 1)}
               className="w-full bg-surface-card border border-line rounded-lg px-3 py-1.5 text-xs text-fg font-mono focus:outline-none focus:border-blue-500"
@@ -337,7 +340,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
             <h3 className="font-bold text-base text-fg">Current Progress</h3>
             <span
               className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase border ${
-                status.is_running
+                isBusy
                   ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30 animate-pulse'
                   : status.state === 'completed'
                   ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'

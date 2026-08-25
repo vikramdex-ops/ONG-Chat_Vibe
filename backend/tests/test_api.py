@@ -51,6 +51,14 @@ def test_api_indexing_status():
     assert "state" in data
 
 
+def test_api_index_stop_when_idle():
+    res = client.post("/api/index/stop")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_running"] is False
+    assert data["state"] in {"stopped", "idle"}
+
+
 def test_api_query_validation():
     # Empty question should return 422 or 400
     res = client.post("/api/query", json={"question": ""})

@@ -210,8 +210,9 @@ export async function startIndexing(req?: { directory_path?: string; worker_coun
   return res.json();
 }
 
-export async function stopIndexing(): Promise<IndexStatus> {
-  const res = await fetch(`${API_BASE}/index/stop`, { method: 'POST' });
+export async function stopIndexing(force: boolean = false): Promise<IndexStatus> {
+  const url = force ? `${API_BASE}/index/stop?force=true` : `${API_BASE}/index/stop`;
+  const res = await fetch(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to stop indexing');
   return res.json();
 }

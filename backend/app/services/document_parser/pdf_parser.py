@@ -1,7 +1,6 @@
-﻿import io
-import os
+import io
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Callable
 import fitz  # PyMuPDF
 from PIL import Image
 from app.core.config import IMAGES_DIR, settings
@@ -13,8 +12,34 @@ try:
 except ImportError:
     pytesseract = None
 
+_tesseract_available: Optional[bool] = None
 
-def parse_pdf_document(file_path: Path) -> List[Dict[str, Any]]:
+
+class IndexingCancelled(Exception):
+    """Raised when the user stops indexing mid-document."""
+
+
+def tesseract_available() -> bool:
+    global _tesseract_available
+    if _tesseract_available is not None:
+        return _tesseract_available
+    if pytesseract is None:
+        _tesseract_available = False
+        return False
+    try:
+        pytesseract.get_tesseract_version()
+        _tesseract_available = True
+    except Exception:
+        _tesseract_available = False
+        app_logger.info("PDFParser", "Tesseract is not installed; OCR fallback is disabled.")
+    return _tesseract_available
+
+
+def parse_pdf_document(
+    file_path: Path,
+    should_stop: Optional[Callable[[], bool]] = None,
+    on_page: Optional[Callable[[int, int], None]] = None,
+) -> List[Dict[str, Any]]:
     """
     Extracts text and images from each page of a PDF document.
     Performs OCR fallback when page text is less than ocr_char_threshold (default 50 chars).
@@ -25,18 +50,27 @@ def parse_pdf_document(file_path: Path) -> List[Dict[str, Any]]:
 
     try:
         doc = fitz.open(file_path)
-        app_logger.debug("PDFParser", f"Parsing PDF '{file_path.name}' ({len(doc)} pages)", document=file_path.name)
+        total_pages = len(doc)
+        app_logger.debug("PDFParser", f"Parsing PDF '{file_path.name}' ({total_pages} pages)", document=file_path.name)
 
-        for page_num in range(len(doc)):
+        for page_num in range(total_pages):
+            if should_stop and should_stop():
+                doc.close()
+                raise IndexingCancelled(f"Stopped while reading {file_path.name} at page {page_num + 1}")
+            if on_page:
+                on_page(page_num + 1, total_pages)
+
             page = doc[page_num]
             page_text = page.get_text("text", sort=True)
             image_paths_on_page = []
 
-            # 1. Extract embedded images
             try:
                 img_list = page.get_images(full=True)
                 if img_list:
                     for img_index, img_info in enumerate(img_list):
+                        if should_stop and should_stop():
+                            doc.close()
+                            raise IndexingCancelled(f"Stopped while reading {file_path.name} at page {page_num + 1}")
                         xref = img_info[0]
                         try:
                             base_image = page.parent.extract_image(xref)
@@ -50,11 +84,12 @@ def parse_pdf_document(file_path: Path) -> List[Dict[str, Any]]:
                                 image_paths_on_page.append(str(save_path))
                         except Exception as ex_img:
                             app_logger.warning("PDFParser", f"Page {page_num + 1}: Error extracting image xref {xref}: {ex_img}", document=file_path.name)
+            except IndexingCancelled:
+                raise
             except Exception as img_err:
                 app_logger.warning("PDFParser", f"Page {page_num + 1}: Error scanning images: {img_err}", document=file_path.name)
 
-            # 2. OCR Fallback if text is below threshold
-            if len(page_text.strip()) < settings.ocr_char_threshold and pytesseract:
+            if len(page_text.strip()) < settings.ocr_char_threshold and tesseract_available():
                 try:
                     pix = page.get_pixmap(dpi=300)
                     img_data = pix.tobytes("png")
@@ -75,6 +110,8 @@ def parse_pdf_document(file_path: Path) -> List[Dict[str, Any]]:
 
         doc.close()
         return page_data_list
+    except IndexingCancelled:
+        raise
     except Exception as e:
         app_logger.error("PDFParser", f"Failed to parse PDF {file_path.name}: {e}", document=file_path.name)
         raise
