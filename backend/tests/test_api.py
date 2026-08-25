@@ -11,6 +11,14 @@ from app.main import app
 client = TestClient(app)
 
 
+def test_api_health_live():
+    res = client.get("/api/health/live")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["service"] == "sqa-og"
+
+
 def test_api_health():
     res = client.get("/api/health")
     assert res.status_code == 200

@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from fastapi import HTTPException
 
-from app.core.config import IMAGES_DIR, BASE_DIR, settings
+from app.core.config import IMAGES_DIR, BASE_DIR, settings, cors_allow_origins
 from app.core.logging_service import app_logger
 from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace
 from app.services.image_resolver import resolve_image_file
@@ -18,10 +18,11 @@ app = FastAPI(
     version="2.0.0"
 )
 
+_cors_origins = cors_allow_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -80,4 +81,4 @@ async def on_startup():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8001")))

@@ -12,6 +12,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ImageResult } from '../../types';
+import { resolveApiUrl } from '../../lib/apiBase';
 
 interface ImageGalleryProps {
   images: ImageResult[];
@@ -31,7 +32,12 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
     }
   }, [isZoomModalOpen, currentIndex]);
 
-  if (!images || images.length === 0) {
+  const resolvedImages = (images || []).map((img) => ({
+    ...img,
+    url: resolveApiUrl(img.url),
+  }));
+
+  if (!resolvedImages.length) {
     return (
       <div className="panel p-5">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-line">
@@ -46,14 +52,14 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
     );
   }
 
-  const currentImage = images[currentIndex];
+  const currentImage = resolvedImages[currentIndex];
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : resolvedImages.length - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+    setCurrentIndex((prev) => (prev < resolvedImages.length - 1 ? prev + 1 : 0));
   };
 
   const clampScale = (value: number) => Math.min(4, Math.max(1, value));
@@ -90,19 +96,19 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
           <ImageIcon className="w-4 h-4 text-indigo-500" />
           <h3 className="font-semibold text-sm text-fg">Relevant Images</h3>
           <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700/40 text-indigo-700 dark:text-indigo-300">
-            {images.length} found
+            {resolvedImages.length} found
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-fg-muted">
-            Image <span className="text-fg font-semibold">{currentIndex + 1}</span> of {images.length}
+            Image <span className="text-fg font-semibold">{currentIndex + 1}</span> of {resolvedImages.length}
           </span>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={handlePrev}
-              disabled={images.length <= 1}
+              disabled={resolvedImages.length <= 1}
               className="p-1 rounded-lg bg-surface-muted hover:bg-line disabled:opacity-40 disabled:hover:bg-surface-muted text-fg transition-colors"
               title="Previous Image"
             >
@@ -111,7 +117,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
             <button
               type="button"
               onClick={handleNext}
-              disabled={images.length <= 1}
+              disabled={resolvedImages.length <= 1}
               className="p-1 rounded-lg bg-surface-muted hover:bg-line disabled:opacity-40 disabled:hover:bg-surface-muted text-fg transition-colors"
               title="Next Image"
             >
@@ -158,9 +164,9 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
         </div>
       </div>
 
-      {images.length > 1 && (
+      {resolvedImages.length > 1 && (
         <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
-          {images.map((img, idx) => (
+          {resolvedImages.map((img, idx) => (
             <button
               key={idx}
               type="button"

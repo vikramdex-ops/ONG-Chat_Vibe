@@ -19,6 +19,7 @@ import {
   uploadDocuments
 } from '../../services/api';
 import { ConfettiBurst } from '../ui/ConfettiBurst';
+import { resolveApiUrl } from '../../lib/apiBase';
 
 interface IndexingViewProps {
   settings: AppSettings | null;
@@ -173,7 +174,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
           </div>
           {status.filmstrip_url && (
             <div className="flex items-center gap-3">
-              <img src={status.filmstrip_url} alt="current page" className="h-20 rounded border border-line bg-white object-contain" />
+              <img src={resolveApiUrl(status.filmstrip_url)} alt="current page" className="h-20 rounded border border-line bg-white object-contain" />
               <div className="text-xs text-fg-muted">
                 {status.current_file} · page {status.current_page || 1}
               </div>

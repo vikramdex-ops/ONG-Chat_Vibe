@@ -11,7 +11,7 @@ from app.services.document_parser.chunker import simple_chunker
 from app.services.vector_db import sanitize_filename, generate_chunk_id, vector_db_service
 from app.services.rag import construct_prompt, resolve_images
 from app.models.schemas import SourceContext, ImageResult
-from app.core.config import settings
+from app.core.config import settings, public_media_url, cors_allow_origins
 
 
 def test_chunker_short_text():
@@ -85,6 +85,23 @@ def test_resolve_images():
     assert len(images) == 2  # Deduplicated
     assert images[0].filename == "api650_p42_img0.png"
     assert images[0].url == "/api/images/api650_p42_img0.png"
+
+
+def test_public_media_url_passthrough(monkeypatch):
+    monkeypatch.delenv("PUBLIC_API_URL", raising=False)
+    assert public_media_url("/api/images/fig.png") == "/api/images/fig.png"
+
+
+def test_public_media_url_prefix(monkeypatch):
+    monkeypatch.setenv("PUBLIC_API_URL", "https://demo.hf.space")
+    assert public_media_url("/api/images/fig.png") == "https://demo.hf.space/api/images/fig.png"
+    monkeypatch.setenv("PUBLIC_API_URL", "https://demo.hf.space/api")
+    assert public_media_url("/api/images/fig.png") == "https://demo.hf.space/api/images/fig.png"
+
+
+def test_cors_origins_star(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    assert cors_allow_origins() == ["*"]
 
 
 def test_vector_db_service_count():

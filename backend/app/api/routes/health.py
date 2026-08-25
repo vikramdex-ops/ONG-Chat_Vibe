@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 from app.models.schemas import HealthStatus
 from app.core.config import settings
 from app.services.vector_db import vector_db_service
@@ -6,6 +6,12 @@ from app.services.embeddings import embedding_service
 from app.services.llm.factory import get_llm_provider
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
+
+
+@router.get("/live")
+async def liveness():
+    """Cheap probe for Render / Hugging Face / Cloud Run. Does not touch Chroma or the LLM."""
+    return {"status": "ok", "service": "sqa-og", "version": "2.0.0"}
 
 
 @router.get("", response_model=HealthStatus)

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: sqa-og-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: SQA_WORKER_COUNT
+        value: "1"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: SQA_DATA_DIR
+        value: /var/data

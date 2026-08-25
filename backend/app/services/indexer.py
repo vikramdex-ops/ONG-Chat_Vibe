@@ -8,7 +8,8 @@ from app.core.config import (
     UPLOADS_DIR,
     PROCESSED_FILES_LOG,
     settings,
-    SETTINGS_FILE
+    SETTINGS_FILE,
+    public_media_url,
 )
 from app.core.logging_service import app_logger
 from app.models.schemas import IndexStatus, IndexStartRequest, FileQueueItem

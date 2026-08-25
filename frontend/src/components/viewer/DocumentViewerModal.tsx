@@ -7,6 +7,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { SourceContext } from '../../types';
+import { documentFileUrl, imageFileUrl } from '../../lib/apiBase';
 
 interface DocumentViewerModalProps {
   source: SourceContext | null;
@@ -16,7 +17,7 @@ interface DocumentViewerModalProps {
 export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ source, onClose }) => {
   if (!source) return null;
 
-  const fileUrl = `/api/documents/${encodeURIComponent(source.source)}/file`;
+  const fileUrl = documentFileUrl(source.source);
   const isPdf = source.source.toLowerCase().endsWith('.pdf');
 
   return (
@@ -90,7 +91,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ source
                       return (
                         <div key={idx} className="bg-surface-input border border-line rounded-lg p-2 flex flex-col items-center">
                           <img
-                            src={`/api/images/${filename}`}
+                            src={imageFileUrl(filename)}
                             alt={filename}
                             className="max-h-32 object-contain rounded"
                           />

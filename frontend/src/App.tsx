@@ -20,6 +20,7 @@ export const App: React.FC = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [replay, setReplay] = useState<{ question: string; answer: string; sources: SourceContext[]; images: ImageResult[] } | null>(null);
   const [lastQuestion, setLastQuestion] = useState('');
+  const [apiReady, setApiReady] = useState<boolean | null>(null);
 
   const refreshGlobalState = async () => {
     try {
@@ -31,7 +32,9 @@ export const App: React.FC = () => {
       setHealth(h);
       setSettings(s);
       setDocumentCount(docs.filter(d => d.status === 'indexed').length);
+      setApiReady(true);
     } catch (e) {
+      setApiReady(false);
       console.warn('Telemetry polling notice:', e);
     }
   };
@@ -83,6 +86,11 @@ export const App: React.FC = () => {
         />
 
         <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-gradient-to-b from-surface via-blue-50/40 to-surface dark:via-slate-900/40">
+          {apiReady === false && (
+            <div className="max-w-4xl mx-auto mb-4 rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-xs text-amber-900 dark:text-amber-200">
+              Waking the live API… free hosts sleep when idle, so the first request can take up to a minute. This banner disappears when <span className="font-mono">/api/health</span> answers.
+            </div>
+          )}
           <div key={activeTab} className="tab-pane">
             {activeTab === 'ask' && (
               <AskView

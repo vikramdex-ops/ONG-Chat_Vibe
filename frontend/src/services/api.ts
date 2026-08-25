@@ -19,6 +19,12 @@ export async function getHealth(): Promise<HealthStatus> {
   return res.json();
 }
 
+export async function getLive(): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/health/live`);
+  if (!res.ok) throw new Error('API is waking up');
+  return res.json();
+}
+
 export async function getSettings(): Promise<AppSettings> {
   const res = await fetch(`${API_BASE}/settings`);
   if (!res.ok) throw new Error('Failed to load settings');

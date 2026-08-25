@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, AsyncGenerator
-from app.core.config import settings
+from app.core.config import settings, public_media_url
 from app.core.logging_service import app_logger
 from app.models.schemas import SourceContext, ImageResult, QueryResponse, ChatTurn
 from app.services.embeddings import embedding_service
@@ -88,7 +88,7 @@ def resolve_images(sources: List[SourceContext]) -> List[ImageResult]:
             display_name = resolved.name if resolved else filename
             image_map[filename] = ImageResult(
                 id=Path(display_name).stem,
-                url=f"/api/images/{display_name}",
+                url=public_media_url(f"/api/images/{display_name}"),
                 source=s.source,
                 page=s.page,
                 filename=display_name,
