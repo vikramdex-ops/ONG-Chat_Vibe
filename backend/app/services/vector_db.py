@@ -1,10 +1,11 @@
+import json
 import re
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from app.core.config import settings, CHROMA_DIR
+from app.core.config import settings, CHROMA_DIR, CHUNK_SNAPSHOT_PATH
 from app.core.logging_service import app_logger
 from app.models.schemas import SourceContext, DocumentChunk
 from app.services.image_resolver import remount_image_paths
@@ -65,7 +66,44 @@ class VectorDBService:
                     name=self._collection_name,
                     metadata={"hnsw:space": "cosine"}
                 )
+                if self._collection.count() == 0:
+                    self._replay_snapshot(self._collection)
             return self._collection
+
+    def _replay_snapshot(self, coll) -> None:
+        if not CHUNK_SNAPSHOT_PATH.exists():
+            return
+        ids, docs, embs, metas = [], [], [], []
+        try:
+            with open(CHUNK_SNAPSHOT_PATH, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    ids.append(row["id"])
+                    docs.append(row["document"])
+                    embs.append(row["embedding"])
+                    metas.append(row.get("metadata") or {})
+            if not ids:
+                return
+            coll.upsert(ids=ids, documents=docs, embeddings=embs, metadatas=metas)
+            app_logger.success("VectorDB", f"Replayed {len(ids)} chunks from snapshot after an empty store.")
+        except Exception as exc:
+            app_logger.error("VectorDB", f"Snapshot replay failed: {exc}")
+
+    def _append_snapshot(self, ids, documents, embeddings, metadatas) -> None:
+        try:
+            with open(CHUNK_SNAPSHOT_PATH, "a", encoding="utf-8") as handle:
+                for cid, doc, emb, meta in zip(ids, documents, embeddings, metadatas):
+                    handle.write(json.dumps({
+                        "id": cid,
+                        "document": doc,
+                        "embedding": emb,
+                        "metadata": meta,
+                    }) + "\n")
+        except Exception as exc:
+            app_logger.warning("VectorDB", f"Could not append chunk snapshot: {exc}")
 
     def count(self) -> int:
         """Return total indexed chunks in the collection."""
@@ -199,6 +237,7 @@ class VectorDBService:
                 embeddings=b_embs,
                 metadatas=b_metas
             )
+            self._append_snapshot(b_ids, b_docs, b_embs, b_metas)
             total_added += len(b_ids)
 
         try:

@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -309,6 +310,9 @@ class IndexingService:
                 self._status.state = "processing"
 
             total_chunks_added = 0
+            app_logger.info("Indexer", "Warming embedding model (one short vector) before writing chunks...")
+            embedding_service.embed_texts(["warmup"], batch_size=1)
+            app_logger.success("Indexer", "Embedding model warm. Writing vectors in small batches.")
 
             for index, file_path in enumerate(pending_files):
                 if not still_current():
@@ -400,33 +404,38 @@ class IndexingService:
                 self._is_running = False
 
     def _flush_chunks(self, chunks: List[Dict[str, Any]]) -> int:
-        """Embeds and writes chunk batch to ChromaDB."""
+        """Embed and write in tiny batches so a 512 MB host cannot die mid-file."""
         if not chunks:
             return 0
 
-        app_logger.info("Indexer", f"Generating embeddings for {len(chunks)} chunks...")
-        with self._status_lock:
-            self._status.current_operation = f"Generating embeddings for {len(chunks)} chunks..."
-            self._status.worker_stage = "embed"
+        step = max(1, int(os.getenv("SQA_EMBED_BATCH", "4")))
+        total_added = 0
+        for i in range(0, len(chunks), step):
+            batch = chunks[i:i + step]
+            done = min(i + len(batch), len(chunks))
+            app_logger.info("Indexer", f"Embedding chunks {i + 1}-{done} of {len(chunks)}...")
+            with self._status_lock:
+                self._status.current_operation = f"Embedding {done}/{len(chunks)} chunks..."
+                self._status.worker_stage = "embed"
 
-        texts = [c["text"] for c in chunks]
-        embeddings = embedding_service.embed_texts(texts)
+            texts = [c["text"] for c in batch]
+            embeddings = embedding_service.embed_texts(texts, batch_size=step)
+            ids = [c["id"] for c in batch]
+            metas = [c["metadata"] for c in batch]
 
-        ids = [c["id"] for c in chunks]
-        metas = [c["metadata"] for c in chunks]
+            with self._status_lock:
+                self._status.current_operation = f"Writing {done}/{len(chunks)} vectors..."
+                self._status.worker_stage = "write"
 
-        app_logger.info("Indexer", f"Writing {len(chunks)} vectors to ChromaDB...")
-        with self._status_lock:
-            self._status.current_operation = f"Writing {len(chunks)} vectors to ChromaDB..."
-            self._status.worker_stage = "write"
-
-        added = vector_db_service.add_chunks_batch(
-            ids=ids,
-            documents=texts,
-            embeddings=embeddings,
-            metadatas=metas
-        )
-        return added
+            added = vector_db_service.add_chunks_batch(
+                ids=ids,
+                documents=texts,
+                embeddings=embeddings,
+                metadatas=metas,
+            )
+            total_added += added
+            app_logger.success("Indexer", f"Wrote {added} vectors ({done}/{len(chunks)}). Store={vector_db_service.count()}")
+        return total_added
 
 
 indexing_service = IndexingService()

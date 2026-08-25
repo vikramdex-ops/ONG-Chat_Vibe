@@ -259,7 +259,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               2. Processing Configuration
             </h3>
             <p className="text-xs text-fg-muted mt-0.5">
-              Digital PDFs are chunked from the PDF text layer. Scanned pages use ONNX OCR (Tesseract is optional). Stop aborts on the current page.
+              Digital PDFs are chunked from the PDF text layer. Scanned pages use ONNX OCR. Vectors are written in small batches after each file — wait for “Saved N vectors” and a non-zero Indexed count before asking.
             </p>
           </div>
 

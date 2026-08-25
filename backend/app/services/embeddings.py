@@ -5,6 +5,12 @@ from typing import List, Optional
 from app.core.config import settings
 from app.core.logging_service import app_logger
 
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("ORT_NUM_THREADS", "1")
+
 
 def choose_embedding_backend() -> str:
     """torch/sentence-transformers locally; ONNX MiniLM on slim hosts like Render free."""

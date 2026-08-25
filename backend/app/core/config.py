@@ -12,6 +12,7 @@ CHROMA_DIR = DATA_DIR / "chroma_db"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 PROCESSED_FILES_LOG = DATA_DIR / "processed_files.json"
 HISTORY_DB_PATH = DATA_DIR / "history.db"
+CHUNK_SNAPSHOT_PATH = DATA_DIR / "chunk_snapshot.jsonl"
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
 
