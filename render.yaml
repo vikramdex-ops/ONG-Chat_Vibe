@@ -1,10 +1,16 @@
 services:
   - type: web
     name: sqa-og-api
-    runtime: docker
+    runtime: python
     plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health/live
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SQA_EMBEDDING_BACKEND
+        value: onnx
       - key: SQA_WORKER_COUNT
         value: "1"
       - key: CORS_ORIGINS
@@ -13,5 +19,3 @@ services:
         sync: false
       - key: PUBLIC_API_URL
         sync: false
-      - key: SQA_DATA_DIR
-        value: /var/data

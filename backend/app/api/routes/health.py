@@ -43,6 +43,7 @@ async def get_overall_health():
         details={
             "collection_name": settings.collection_name,
             "embedding_model": settings.embedding_model_name,
+            "embedding_backend": embedding_service.backend,
             "llm_provider": settings.llm_provider,
             "llm_url": settings.llm_server_url,
             "llm_details": llm_health

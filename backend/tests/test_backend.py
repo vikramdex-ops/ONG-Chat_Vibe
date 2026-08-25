@@ -87,6 +87,13 @@ def test_resolve_images():
     assert images[0].url == "/api/images/api650_p42_img0.png"
 
 
+def test_choose_embedding_backend_onnx(monkeypatch):
+    from app.services.embeddings import choose_embedding_backend
+
+    monkeypatch.setenv("SQA_EMBEDDING_BACKEND", "onnx")
+    assert choose_embedding_backend() == "onnx"
+
+
 def test_public_media_url_passthrough(monkeypatch):
     monkeypatch.delenv("PUBLIC_API_URL", raising=False)
     assert public_media_url("/api/images/fig.png") == "/api/images/fig.png"

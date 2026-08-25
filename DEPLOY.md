@@ -1,82 +1,82 @@
 # Deploy SQA-O&G (free stack)
 
-The UI is a static Vite app. ChromaDB, uploads, OCR, and SSE streaming need an always-on FastAPI process — they cannot run on Vercel serverless.
+The UI is a static Vite app. ChromaDB, uploads, and SSE streaming need an always-on FastAPI process — they cannot run on Vercel serverless.
 
 | Piece | Free host | Why |
 | --- | --- | --- |
 | Frontend | [Vercel Hobby](https://vercel.com) | Static React, custom domain, HTTPS |
-| API + Chroma | [Hugging Face Spaces](https://huggingface.co/spaces) (Docker, CPU Basic) | 16 GB RAM — enough for MiniLM + Chroma. Render free is 512 MB and will OOM. |
-| LLM | [Google Gemini](https://aistudio.google.com/app/apikey) | Free API key, set in Space secrets or in Settings |
+| API + Chroma | [Render](https://dashboard.render.com) **Web Service** (free) | Native Python, no Docker. Uses ONNX MiniLM so it fits 512 MB. |
+| LLM | [Google Gemini](https://aistudio.google.com/app/apikey) | Free API key |
 
 Do **not** proxy `/api` through Vercel. Query streaming and PDF uploads would hit Hobby timeouts. The frontend calls the API origin directly via `VITE_API_BASE`.
 
-Production branch for this work: `arena/01a037ca-ong-chat-vibe`.
+Production branch: `arena/01a037ca-ong-chat-vibe`.
+
+Hugging Face free Spaces cannot run Docker — skip HF.
 
 ---
 
-## 1. Live API — Hugging Face Space (recommended)
+## 1. Live API — Render Web Service
 
-1. Open [huggingface.co/new-space](https://huggingface.co/new-space) (free account).
-2. **Space name:** `sqa-og-api` (any name is fine).
-3. **SDK:** Docker.
-4. **Hardware:** CPU basic (free).
-5. Create the Space, then **Settings → Connected to GitHub** and select `vikramdex-ops/ONG-Chat_Vibe`.
-   - Or push this repo into the Space with `git remote add space https://huggingface.co/spaces/<you>/sqa-og-api` and `git push space arena/01a037ca-ong-chat-vibe:main`.
-6. In the Space **Settings → Variables and secrets**:
+On [dashboard.render.com](https://dashboard.render.com) → **New** → **Web Service** (not Static Site).
 
-   | Name | Value |
-   | --- | --- |
-   | `GEMINI_API_KEY` | your [AI Studio](https://aistudio.google.com/app/apikey) key |
-   | `SQA_WORKER_COUNT` | `1` |
-   | `CORS_ORIGINS` | `https://<your-vercel-app>.vercel.app` (or `*` until Vercel exists) |
-   | `PUBLIC_API_URL` | `https://<you>-sqa-og-api.hf.space` |
+1. Connect GitHub repo `vikramdex-ops/ONG-Chat_Vibe`.
+2. Fill the form:
 
-7. Space **App port** must be `8001` (the Dockerfile default).
-8. Wait for the build. Confirm `https://<you>-sqa-og-api.hf.space/api/health/live` returns `{"status":"ok",...}`.
+| Field | Value |
+| --- | --- |
+| Name | `sqa-og-api` |
+| Branch | `arena/01a037ca-ong-chat-vibe` |
+| Language / Runtime | **Python 3** |
+| Root Directory | *(leave empty)* |
+| Build Command | `pip install -r requirements-render.txt` |
+| Start Command | `PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Instance type | **Free** |
 
-Free Spaces sleep after ~48 hours idle. The first request after sleep can take up to a minute — the web app shows a wake banner.
+3. Environment variables:
 
-**Import a knowledge base** after the Space is up: Settings → Import KB zip. Free disks are ephemeral; export the pack before a rebuild.
+| Key | Value |
+| --- | --- |
+| `PYTHON_VERSION` | `3.11.9` |
+| `SQA_EMBEDDING_BACKEND` | `onnx` |
+| `SQA_WORKER_COUNT` | `1` |
+| `GEMINI_API_KEY` | your [AI Studio](https://aistudio.google.com/app/apikey) key |
+| `CORS_ORIGINS` | `*` until Vercel exists, then your `https://….vercel.app` |
+| `PUBLIC_API_URL` | `https://sqa-og-api.onrender.com` (use the URL Render shows) |
+
+4. Create Web Service. First build takes several minutes (ONNX MiniLM download).
+5. Confirm `https://<service>.onrender.com/api/health/live` returns `{"status":"ok",...}`.
+
+Render free sleeps after ~15 minutes idle. The first request after sleep can take up to a minute — the web app shows a wake banner.
+
+Disk is ephemeral on free. Export a KB zip from Settings before a rebuild.
+
+Do **not** pick Docker / Static Site / Private Service / Postgres for this API.
 
 ---
 
 ## 2. Frontend — Vercel
 
 1. Open [vercel.com/new](https://vercel.com/new) and import `vikramdex-ops/ONG-Chat_Vibe`.
-2. **Production Branch:** `arena/01a037ca-ong-chat-vibe` (until this lands on `master`).
+2. **Production Branch:** `arena/01a037ca-ong-chat-vibe`.
 3. Leave Root Directory empty — `vercel.json` at the repo root builds `frontend/`.
 4. Environment variable (Production + Preview):
 
-   | Name | Value |
-   | --- | --- |
-   | `VITE_API_BASE` | `https://<you>-sqa-og-api.hf.space/api` |
+| Name | Value |
+| --- | --- |
+| `VITE_API_BASE` | `https://<service>.onrender.com/api` |
 
-   No trailing slash. Rebuild after changing this — Vite inlines it at build time.
-5. Deploy. Open the Vercel URL, go to **Settings**, paste the same Gemini key if you did not set the Space secret, click **Test**.
+No trailing slash. Rebuild after changing this — Vite inlines it at build time.
 
----
-
-## 3. Optional: Render instead of Hugging Face
-
-`render.yaml` is in the repo. Render **free** web services are 512 MB and usually kill PyTorch. Use only if you upgrade to a 1–2 GB plan.
-
-1. [dashboard.render.com/select-repo?type=blueprint](https://dashboard.render.com/select-repo?type=blueprint)
-2. Set `CORS_ORIGINS`, `GEMINI_API_KEY`, `PUBLIC_API_URL=https://<service>.onrender.com`.
-3. Point Vercel `VITE_API_BASE` at `https://<service>.onrender.com/api`.
-
-Render free also sleeps after 15 minutes.
+5. Deploy. Open the Vercel URL → Settings → Test Gemini if the Render env did not seed the key.
 
 ---
 
-## Local check before you click Deploy
+## Local check
 
 ```bash
-# API
 python run_app.py --no-browser
-
 # curl http://127.0.0.1:8001/api/health/live
-
-# Frontend (already proxies /api → :8001)
 cd frontend && npm run dev
 ```
 
