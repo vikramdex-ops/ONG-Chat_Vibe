@@ -113,11 +113,16 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({ source
 
           <div className="bg-surface-input flex flex-col items-center justify-center p-4 overflow-hidden relative">
             {isPdf ? (
-              <iframe
-                src={`${fileUrl}#page=${source.page}`}
-                className="w-full h-full rounded-xl border border-line bg-white"
-                title="PDF Page Preview"
-              />
+              <div className="w-full h-full flex flex-col">
+                <div className="text-[11px] text-center py-1 bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200">
+                  Jumped to page {source.page} · matching clause is highlighted at left
+                </div>
+                <iframe
+                  src={`${fileUrl}#page=${source.page}`}
+                  className="w-full flex-1 rounded-b-xl border border-line bg-white"
+                  title="PDF Page Preview"
+                />
+              </div>
             ) : (
               <div className="text-center p-8 space-y-3">
                 <div className="w-12 h-12 rounded-xl bg-surface-muted border border-line flex items-center justify-center mx-auto text-fg">

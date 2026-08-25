@@ -11,7 +11,8 @@ from app.core.config import (
     SETTINGS_FILE
 )
 from app.core.logging_service import app_logger
-from app.models.schemas import IndexStatus, IndexStartRequest
+from app.models.schemas import IndexStatus, IndexStartRequest, FileQueueItem
+from app.core.config import IMAGES_DIR
 from app.services.vector_db import (
     vector_db_service,
     generate_chunk_id,
@@ -23,6 +24,7 @@ from app.services.document_parser.pdf_parser import parse_pdf_document
 from app.services.document_parser.pptx_parser import parse_pptx_document
 from app.services.document_parser.docx_parser import parse_docx_document
 from app.services.image_resolver import to_portable_image_refs
+from app.services.standards import parse_standard_meta
 
 
 SUPPORTED_EXTENSIONS = {".pdf", ".pptx", ".docx"}
@@ -119,6 +121,24 @@ class IndexingService:
         self._thread.start()
         return True
 
+    def _write_thumb(self, file_path: Path, page_index: int = 0) -> Optional[str]:
+        if file_path.suffix.lower() != ".pdf":
+            return None
+        try:
+            import fitz
+            doc = fitz.open(file_path)
+            if page_index >= len(doc):
+                page_index = 0
+            page = doc[page_index]
+            pix = page.get_pixmap(matrix=fitz.Matrix(0.28, 0.28))
+            name = f"_thumb_{sanitize_filename(file_path.stem)}_p{page_index + 1}.jpg"
+            dest = IMAGES_DIR / name
+            pix.save(str(dest))
+            doc.close()
+            return f"/api/images/{name}"
+        except Exception:
+            return None
+
     def _scan_directory(self, directory: Path) -> List[Path]:
         found_files = []
         if not directory.exists():
@@ -166,11 +186,14 @@ class IndexingService:
 
             for i, chunk_text in enumerate(page_chunks):
                 cid = generate_chunk_id(file_name, page_num, i)
+                std = parse_standard_meta(file_name)
                 meta = {
                     "source": file_name,
                     "page": int(page_num),
                     "chunk_in_page": int(i + 1),
-                    "image_paths_str": "|".join(to_portable_image_refs(img_paths))
+                    "image_paths_str": "|".join(to_portable_image_refs(img_paths)),
+                    "family": std.get("family") or "",
+                    "year": std.get("year") or "",
                 }
                 chunks.append({
                     "id": cid,
@@ -200,10 +223,16 @@ class IndexingService:
         try:
             # 1. Discover files
             all_files = self._scan_directory(target_dir)
+            if req.filenames:
+                wanted = {name.lower() for name in req.filenames}
+                all_files = [f for f in all_files if f.name.lower() in wanted]
             total_discovered = len(all_files)
 
             # 2. Filter out already processed files (Resumable feature)
-            pending_files = [f for f in all_files if not tracker.is_processed(str(f))]
+            if req.filenames:
+                pending_files = list(all_files)
+            else:
+                pending_files = [f for f in all_files if not tracker.is_processed(str(f))]
             skipped_count = total_discovered - len(pending_files)
 
             app_logger.info("Indexer", f"Scan complete: {total_discovered} found, {skipped_count} previously indexed, {len(pending_files)} new.")
@@ -238,6 +267,7 @@ class IndexingService:
                 percent = round((index / len(pending_files)) * 100, 1)
                 eta = round((elapsed / (index + 1)) * (len(pending_files) - index), 1) if index > 0 else 0.0
 
+                thumb = self._write_thumb(file_path, 0)
                 with self._status_lock:
                     self._status.processed_files = index
                     self._status.percentage = percent
@@ -245,6 +275,16 @@ class IndexingService:
                     self._status.current_operation = f"Extracting & chunking ({index + 1}/{len(pending_files)})"
                     self._status.elapsed_seconds = round(elapsed, 1)
                     self._status.estimated_remaining_seconds = eta
+                    self._status.worker_stage = "extract"
+                    self._status.current_page = 1
+                    self._status.filmstrip_url = thumb
+                    queue = list(self._status.file_queue)
+                    for item in queue:
+                        if item.name == file_name:
+                            item.status = "active"
+                        elif item.status == "active":
+                            item.status = "done"
+                    self._status.file_queue = queue
 
                 app_logger.info("Indexer", f"Processing {file_name}...", document=file_name)
 
@@ -302,6 +342,7 @@ class IndexingService:
         app_logger.info("Indexer", f"Generating embeddings for {len(chunks)} chunks...")
         with self._status_lock:
             self._status.current_operation = f"Generating embeddings for {len(chunks)} chunks..."
+            self._status.worker_stage = "embed"
 
         texts = [c["text"] for c in chunks]
         embeddings = embedding_service.embed_texts(texts)
@@ -312,6 +353,7 @@ class IndexingService:
         app_logger.info("Indexer", f"Writing {len(chunks)} vectors to ChromaDB...")
         with self._status_lock:
             self._status.current_operation = f"Writing {len(chunks)} vectors to ChromaDB..."
+            self._status.worker_stage = "write"
 
         added = vector_db_service.add_chunks_batch(
             ids=ids,

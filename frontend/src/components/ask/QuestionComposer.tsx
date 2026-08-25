@@ -8,6 +8,7 @@ interface QuestionComposerProps {
   onClear: () => void;
   isLoading: boolean;
   canAsk: boolean;
+  onDemo?: () => void;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -23,7 +24,8 @@ export const QuestionComposer: React.FC<QuestionComposerProps> = ({
   onAsk,
   onClear,
   isLoading,
-  canAsk
+  canAsk,
+  onDemo
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

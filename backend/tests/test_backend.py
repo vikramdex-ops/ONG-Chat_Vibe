@@ -107,3 +107,31 @@ def test_factory_returns_mock():
 
     provider = get_llm_provider("mock")
     assert isinstance(provider, MockLLMProvider)
+
+
+def test_standard_meta_and_hybrid_keywords():
+    from app.services.standards import parse_standard_meta, extract_keyword_terms, matches_filters, keyword_boost
+
+    meta = parse_standard_meta("ASME B16.5-1996.pdf")
+    assert meta["family"] == "ASME"
+    assert meta["year"] == "1996"
+    terms = extract_keyword_terms("What is API 650 5.2.2 hydrotest?")
+    assert any("650" in t or t.upper() == "API" for t in terms)
+    assert matches_filters("API 650 2020.pdf", family="API", year="2020")
+    assert not matches_filters("ISO 9001.pdf", family="API")
+    assert keyword_boost("API 650 hydrostatic test", ["API 650"]) > 0
+
+
+def test_prompt_requires_citations():
+    sources = [
+        SourceContext(
+            id="test_1",
+            source="API_650.pdf",
+            page=42,
+            chunk=1,
+            text="Hydrostatic test shall be conducted at 1.5 times design pressure."
+        )
+    ]
+    prompt = construct_prompt("What is the test pressure for API 650?", sources, answer_mode="quoted")
+    assert "[S1]" in prompt
+    assert "citation" in prompt.lower() or "Cite" in prompt or "MUST" in prompt

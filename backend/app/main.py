@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from app.core.config import IMAGES_DIR, BASE_DIR, settings
 from app.core.logging_service import app_logger
-from app.api.routes import health, query, documents, index, settings as settings_routes, history
+from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace
 from app.services.image_resolver import resolve_image_file
 
 app = FastAPI(
@@ -45,6 +45,7 @@ app.include_router(documents.router)
 app.include_router(index.router)
 app.include_router(settings_routes.router)
 app.include_router(history.router)
+app.include_router(workspace.router)
 
 # Mount built frontend if available
 FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"

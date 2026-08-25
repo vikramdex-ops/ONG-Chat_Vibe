@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Bot, Copy, Check, RefreshCw, Clock, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Bot, Copy, Check, RefreshCw, Clock, Sparkles, AlertCircle, Download, BookmarkPlus } from 'lucide-react';
+import { SourceContext } from '../../types';
+import { bestSourceForSentence, citationIndex, splitSentences } from '../../lib/citations';
 
 interface AnswerCardProps {
   answer: string;
@@ -8,27 +10,11 @@ interface AnswerCardProps {
   statusMessage?: string;
   onRegenerate?: () => void;
   error?: string | null;
-}
-
-function formatMarkdown(text: string): string {
-  if (!text) return '';
-  let html = text
-    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>')
-    .replace(/^\s*\*\s+(.*$)/gim, '<li>$1</li>')
-    .replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li>$2</li>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br/>');
-
-  html = html.replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>');
-
-  return `<p>${html}</p>`;
+  sources?: SourceContext[];
+  activeSentence?: number | null;
+  onTraceSentence?: (index: number, source: SourceContext | null) => void;
+  onExport?: () => void;
+  onBookmark?: () => void;
 }
 
 export const AnswerCard: React.FC<AnswerCardProps> = ({
@@ -37,9 +23,15 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
   isLoading,
   statusMessage,
   onRegenerate,
-  error
+  error,
+  sources = [],
+  activeSentence,
+  onTraceSentence,
+  onExport,
+  onBookmark,
 }) => {
   const [copied, setCopied] = useState(false);
+  const sentences = useMemo(() => splitSentences(answer), [answer]);
 
   const handleCopy = () => {
     if (!answer) return;
@@ -65,7 +57,7 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
               )}
             </h3>
             <span className="text-[11px] text-fg-muted">
-              Synthesized strictly from indexed knowledge base standards
+              Click a sentence to trace its source clause
             </span>
           </div>
         </div>
@@ -77,26 +69,28 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
               <span>{executionTimeMs} ms</span>
             </div>
           )}
-
           {answer && !isLoading && (
             <>
+              {onBookmark && (
+                <button type="button" onClick={onBookmark} className="p-1.5 rounded-lg bg-surface-muted border border-line text-fg" title="Bookmark">
+                  <BookmarkPlus className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onExport && (
+                <button type="button" onClick={onExport} className="p-1.5 rounded-lg bg-surface-muted border border-line text-fg" title="Export briefing">
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-fg hover:text-fg bg-surface-muted hover:bg-line border border-line transition-colors"
-                title="Copy Answer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-fg bg-surface-muted hover:bg-line border border-line"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied!' : 'Copy'}</span>
               </button>
-
               {onRegenerate && (
-                <button
-                  type="button"
-                  onClick={onRegenerate}
-                  className="p-1.5 rounded-lg text-fg-muted hover:text-fg bg-surface-muted hover:bg-line border border-line transition-colors"
-                  title="Regenerate Answer"
-                >
+                <button type="button" onClick={onRegenerate} className="p-1.5 rounded-lg text-fg-muted bg-surface-muted border border-line" title="Regenerate">
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -106,11 +100,11 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
       </div>
 
       {error ? (
-        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 flex items-start gap-3 text-sm">
+        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-700 flex items-start gap-3 text-sm">
           <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
           <div>
-            <div className="font-semibold text-rose-800 dark:text-rose-200">Query Processing Error</div>
-            <div className="text-xs text-rose-700/90 dark:text-rose-300/90 mt-1 leading-relaxed">{error}</div>
+            <div className="font-semibold">Query Processing Error</div>
+            <div className="text-xs mt-1">{error}</div>
           </div>
         </div>
       ) : isLoading && !answer ? (
@@ -119,18 +113,29 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
             <Sparkles className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-sm text-fg font-medium">{statusMessage || 'Searching knowledge base...'}</div>
-          <div className="text-xs text-fg-muted max-w-sm">
-            Retrieving vector embeddings from ChromaDB and constructing context prompt...
-          </div>
         </div>
       ) : answer ? (
-        <div
-          className="prose-answer"
-          dangerouslySetInnerHTML={{ __html: formatMarkdown(answer) }}
-        />
+        <div className="prose-answer space-y-2">
+          {sentences.map((sentence, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                const cited = citationIndex(sentence);
+                const src = cited !== null && sources[cited] ? sources[cited] : bestSourceForSentence(sentence, sources);
+                onTraceSentence?.(idx, src);
+              }}
+              className={`block w-full text-left text-sm leading-relaxed rounded-lg px-2 py-1 transition-colors ${
+                activeSentence === idx ? 'bg-amber-100 dark:bg-amber-900/30 text-fg' : 'hover:bg-surface-muted text-fg/90'
+              }`}
+            >
+              {sentence}
+            </button>
+          ))}
+        </div>
       ) : (
         <div className="py-8 text-center text-fg-muted text-sm">
-          No answer yet. Ask a question above to retrieve context from your Oil &amp; Gas documentation.
+          No answer yet. Ask a question or run the demo query to watch the pipeline.
         </div>
       )}
     </div>

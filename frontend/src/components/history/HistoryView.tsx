@@ -11,14 +11,16 @@ import {
   Image as ImageIcon,
   MessageSquare
 } from 'lucide-react';
-import { HistoryItem } from '../../types';
-import { getHistory, deleteHistoryItem, clearHistory } from '../../services/api';
+import { HistoryItem, ImageResult, SourceContext } from '../../types';
+import { getHistory, deleteHistoryItem, clearHistory, createBookmark } from '../../services/api';
+import { Play } from 'lucide-react';
 
 interface HistoryViewProps {
   onReopenQuery: (question: string) => void;
+  onReplay?: (payload: { question: string; answer: string; sources: SourceContext[]; images: ImageResult[] }) => void;
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ onReopenQuery }) => {
+export const HistoryView: React.FC<HistoryViewProps> = ({ onReopenQuery, onReplay }) => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -99,7 +101,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onReopenQuery }) => {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 relative pl-4">
+        <div className="absolute left-1 top-2 bottom-2 w-px bg-line" />
         {history.length === 0 ? (
           <div className="panel p-12 text-center text-fg-muted text-xs">
             <MessageSquare className="w-8 h-8 text-fg-muted mx-auto mb-2" />
@@ -109,8 +112,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onReopenQuery }) => {
           history.map((item) => (
             <div
               key={item.id}
-              className="panel p-5 hover:border-blue-300 dark:hover:border-slate-600 transition-all space-y-3"
+              className="panel p-5 hover:border-blue-300 dark:hover:border-slate-600 transition-all space-y-3 relative"
+              title={`${item.question} · ${item.sources_count} sources`}
             >
+              <span className="absolute -left-[18px] top-6 w-2.5 h-2.5 rounded-full bg-purple-500 border-2 border-surface-card" />
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 text-[11px] text-fg-muted font-mono">
@@ -135,6 +140,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onReopenQuery }) => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {onReplay && (
+                    <button
+                      type="button"
+                      onClick={() => onReplay({ question: item.question, answer: item.answer, sources: item.sources, images: item.images })}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-line bg-surface-muted"
+                      title="Replay pipeline without a new LLM call"
+                    >
+                      <Play className="w-3 h-3" /> Replay
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => createBookmark({ name: item.question.slice(0, 60), question: item.question, history_id: item.id })}
+                    className="px-2 py-1.5 rounded-lg text-[11px] border border-line"
+                  >
+                    Pin
+                  </button>
                   <button
                     type="button"
                     onClick={() => onReopenQuery(item.question)}

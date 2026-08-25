@@ -10,7 +10,7 @@ import {
   X
 } from 'lucide-react';
 import { DocumentInfo, DocumentChunk } from '../../types';
-import { getDocuments, deleteDocument, getDocumentChunks } from '../../services/api';
+import { getDocuments, deleteDocument, getDocumentChunks, reindexDocument } from '../../services/api';
 
 export const DocumentsView: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
@@ -19,6 +19,9 @@ export const DocumentsView: React.FC = () => {
   const [selectedDocForChunks, setSelectedDocForChunks] = useState<string | null>(null);
   const [docChunks, setDocChunks] = useState<DocumentChunk[]>([]);
   const [isLoadingChunks, setIsLoadingChunks] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [constellationDoc, setConstellationDoc] = useState<DocumentInfo | null>(null);
+  const [pageFilter, setPageFilter] = useState<number | null>(null);
 
   const fetchDocs = async () => {
     setIsLoading(true);
@@ -62,9 +65,16 @@ export const DocumentsView: React.FC = () => {
     }
   };
 
+  const counts = {
+    PDF: documents.filter((d) => d.file_type === 'PDF').length,
+    PPTX: documents.filter((d) => d.file_type === 'PPTX').length,
+    DOCX: documents.filter((d) => d.file_type === 'DOCX').length,
+  };
   const filteredDocs = documents.filter((d) =>
-    d.filename.toLowerCase().includes(search.toLowerCase())
+    d.filename.toLowerCase().includes(search.toLowerCase()) &&
+    (typeFilter === 'ALL' || d.file_type === typeFilter)
   );
+  const visibleChunks = pageFilter == null ? docChunks : docChunks.filter((c) => c.page_number === pageFilter);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -101,6 +111,40 @@ export const DocumentsView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(['ALL', 'PDF', 'PPTX', 'DOCX'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTypeFilter(t)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              typeFilter === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface-card border-line text-fg'
+            }`}
+          >
+            {t} {t === 'ALL' ? documents.length : counts[t as 'PDF' | 'PPTX' | 'DOCX']}
+          </button>
+        ))}
+      </div>
+
+      {constellationDoc && (constellationDoc.pages || []).length > 0 && (
+        <div className="panel p-4">
+          <div className="text-xs font-semibold text-fg mb-2">Chunk constellation · {constellationDoc.filename}</div>
+          <div className="flex flex-wrap gap-2">
+            {(constellationDoc.pages || []).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => { setPageFilter(page); handleInspectChunks(constellationDoc.filename); }}
+                className="w-8 h-8 rounded-full border border-line bg-blue-500/15 text-[10px] font-mono text-fg hover:bg-blue-600 hover:text-white"
+                title={`Open page ${page}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
@@ -215,7 +259,7 @@ export const DocumentsView: React.FC = () => {
               ) : docChunks.length === 0 ? (
                 <div className="py-12 text-center text-fg-muted text-xs">No chunks retrieved for this document.</div>
               ) : (
-                docChunks.map((chunk, idx) => (
+                visibleChunks.map((chunk, idx) => (
                   <div key={idx} className="bg-surface-input p-4 rounded-xl border border-line space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-mono text-fg-muted pb-1 border-b border-line">
                       <span className="text-blue-600 dark:text-blue-400 font-semibold">Page {chunk.page_number} • Chunk #{chunk.chunk_index}</span>

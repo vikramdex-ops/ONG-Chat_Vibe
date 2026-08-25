@@ -139,6 +139,51 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <ConfettiBurst active={showConfetti} />
+
+      {(status.file_queue && status.file_queue.length > 0) && (
+        <div className="panel p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-fg">Indexing deck</h4>
+            <div className="flex items-center gap-3 text-[10px] font-mono">
+              {['extract', 'embed', 'write'].map((stage) => (
+                <span key={stage} className="flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${status.worker_stage === stage ? 'bg-blue-500 worker-dot' : 'bg-line'}`} />
+                  {stage}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end gap-2 min-h-[88px] perspective-stack">
+            {status.file_queue.slice(0, 8).map((f, i) => (
+              <div
+                key={f.name}
+                className={`h-20 w-14 rounded-md border text-[9px] p-1 font-mono leading-tight ${
+                  f.status === 'active'
+                    ? 'bg-blue-600 text-white border-blue-400 -translate-y-3 z-10'
+                    : f.status === 'done'
+                    ? 'bg-surface-muted text-fg-muted border-line opacity-50'
+                    : 'bg-surface-card text-fg border-line'
+                }`}
+                style={{ transform: `rotate(${(i - 3) * 4}deg)` }}
+                title={f.name}
+              >
+                {f.name.slice(0, 18)}
+              </div>
+            ))}
+          </div>
+          {status.filmstrip_url && (
+            <div className="flex items-center gap-3">
+              <img src={status.filmstrip_url} alt="current page" className="h-20 rounded border border-line bg-white object-contain" />
+              <div className="text-xs text-fg-muted">
+                {status.current_file} · page {status.current_page || 1}
+              </div>
+            </div>
+          )}
+          <div className="text-[11px] text-fg-muted">
+            Resume ribbon: dim cards are already written; the lifted card is extracting now.
+          </div>
+        </div>
+      )}
       <div className="panel p-6">
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-line">
           <div>

@@ -2,14 +2,16 @@ import {
   HealthStatus,
   AppSettings,
   QueryResponse,
+  QueryRequest,
   DocumentInfo,
   DocumentChunk,
   IndexStatus,
   LogEntry,
-  HistoryItem
+  HistoryItem,
+  BookmarkItem,
+  SourceContext
 } from '../types';
-
-const API_BASE = '/api';
+import { API_BASE } from '../lib/apiBase';
 
 export async function getHealth(): Promise<HealthStatus> {
   const res = await fetch(`${API_BASE}/health`);
@@ -50,11 +52,11 @@ export async function testLLM(
   return res.json();
 }
 
-export async function executeQuery(question: string, topK?: number): Promise<QueryResponse> {
+export async function executeQuery(question: string, topK?: number, extras: Partial<QueryRequest> = {}): Promise<QueryResponse> {
   const res = await fetch(`${API_BASE}/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, top_k: topK })
+    body: JSON.stringify({ question, top_k: topK, ...extras })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Query failed' }));
@@ -72,14 +74,15 @@ export function streamQuery(
     onToken?: (token: string) => void;
     onComplete?: (data: QueryResponse) => void;
     onError?: (error: string) => void;
-  }
+  },
+  extras: Partial<QueryRequest> = {}
 ): () => void {
   const controller = new AbortController();
 
   fetch(`${API_BASE}/query/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, top_k: topK }),
+    body: JSON.stringify({ question, top_k: topK, ...extras }),
     signal: controller.signal
   })
     .then(async (response) => {
@@ -232,4 +235,78 @@ export async function clearHistory(): Promise<any> {
   const res = await fetch(`${API_BASE}/history`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to clear history');
   return res.json();
+}
+
+export async function getHistoryItem(id: string): Promise<HistoryItem> {
+  const res = await fetch(`${API_BASE}/history/${id}`);
+  if (!res.ok) throw new Error('Failed to load history item');
+  return res.json();
+}
+
+export async function reindexDocument(filename: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/documents/${encodeURIComponent(filename)}/reindex`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Re-index failed' }));
+    throw new Error(err.detail || 'Re-index failed');
+  }
+  return res.json();
+}
+
+export async function getBookmarks(): Promise<BookmarkItem[]> {
+  const res = await fetch(`${API_BASE}/bookmarks`);
+  if (!res.ok) throw new Error('Failed to load bookmarks');
+  return res.json();
+}
+
+export async function createBookmark(payload: { name: string; question: string; history_id?: string; collection?: string }): Promise<BookmarkItem> {
+  const res = await fetch(`${API_BASE}/bookmarks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to save bookmark');
+  return res.json();
+}
+
+export async function deleteBookmark(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/bookmarks/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete bookmark');
+}
+
+export async function loginTeam(display_name: string, passcode?: string): Promise<{ success: boolean; display_name: string; team_name: string }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ display_name, passcode })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Login failed' }));
+    throw new Error(err.detail || 'Login failed');
+  }
+  return res.json();
+}
+
+export function kbExportUrl(): string {
+  return `${API_BASE}/kb/export`;
+}
+
+export async function importKbPack(file: File): Promise<any> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/kb/import`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Import failed' }));
+    throw new Error(err.detail || 'Import failed');
+  }
+  return res.json();
+}
+
+export async function exportBriefingHtml(payload: { question: string; answer: string; sources: SourceContext[]; user_name?: string }): Promise<string> {
+  const res = await fetch(`${API_BASE}/export/briefing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to export briefing');
+  return res.text();
 }

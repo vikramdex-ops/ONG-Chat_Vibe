@@ -9,28 +9,37 @@ from app.core.logging_service import app_logger
 router = APIRouter(prefix="/api/query", tags=["Query"])
 
 
+def _query_kwargs(request: QueryRequest) -> dict:
+    return {
+        "question": request.question.strip(),
+        "top_k": request.top_k,
+        "answer_mode": request.answer_mode or "concise",
+        "family": request.family,
+        "year": request.year,
+        "document": request.document,
+        "compare_documents": request.compare_documents,
+        "history": request.history,
+    }
+
+
 @router.post("", response_model=QueryResponse)
 async def query_sqa(request: QueryRequest):
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="Please enter a question.")
 
     try:
-        response = await rag_service.execute_query(
-            question=request.question.strip(),
-            top_k=request.top_k
-        )
-        
-        # Save to history if we got a valid response
+        response = await rag_service.execute_query(**_query_kwargs(request))
         try:
             history_service.add_entry(
                 question=request.question.strip(),
                 answer=response.answer,
                 sources=response.context,
-                images=response.images
+                images=response.images,
+                user_name=request.user_name,
+                answer_mode=response.answer_mode,
             )
         except Exception as hist_err:
             app_logger.warning("QueryAPI", f"Failed to record history: {hist_err}")
-
         return response
     except Exception as e:
         app_logger.error("QueryAPI", f"Error during query execution: {e}")
@@ -44,10 +53,7 @@ async def stream_query_sqa(request: QueryRequest):
 
     async def event_generator():
         try:
-            async for event in rag_service.stream_query(
-                question=request.question.strip(),
-                top_k=request.top_k
-            ):
+            async for event in rag_service.stream_query(**_query_kwargs(request)):
                 if event.get("event") == "complete":
                     try:
                         data = event.get("data") or {}
@@ -58,6 +64,8 @@ async def stream_query_sqa(request: QueryRequest):
                             answer=data.get("answer", ""),
                             sources=sources,
                             images=images,
+                            user_name=request.user_name,
+                            answer_mode=data.get("answer_mode"),
                         )
                     except Exception as hist_err:
                         app_logger.warning("QueryStreamAPI", f"Failed to record history: {hist_err}")

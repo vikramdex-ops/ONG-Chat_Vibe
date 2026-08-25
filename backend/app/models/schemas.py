@@ -1,11 +1,23 @@
-﻿from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
+
+
+class ChatTurn(BaseModel):
+    question: str
+    answer: str = ""
 
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, description="Question to ask SQA")
-    top_k: Optional[int] = Field(None, ge=1, le=20, description="Number of context chunks to retrieve")
-    stream: bool = Field(False, description="Whether to stream the answer response")
+    top_k: Optional[int] = Field(None, ge=1, le=20)
+    stream: bool = Field(False)
+    answer_mode: str = Field("concise", description="concise | quoted | checklist")
+    family: Optional[str] = None
+    year: Optional[str] = None
+    document: Optional[str] = None
+    compare_documents: Optional[List[str]] = None
+    history: Optional[List[ChatTurn]] = None
+    user_name: Optional[str] = None
 
 
 class SourceContext(BaseModel):
@@ -16,6 +28,9 @@ class SourceContext(BaseModel):
     text: str
     score: Optional[float] = None
     image_paths: List[str] = []
+    family: Optional[str] = None
+    year: Optional[str] = None
+    rank_reason: Optional[str] = None
 
 
 class ImageResult(BaseModel):
@@ -32,6 +47,8 @@ class QueryResponse(BaseModel):
     images: List[ImageResult]
     db_count: int
     execution_time_ms: float = 0.0
+    answer_mode: str = "concise"
+    compare: bool = False
 
 
 class DocumentInfo(BaseModel):
@@ -43,7 +60,10 @@ class DocumentInfo(BaseModel):
     chunk_count: int = 0
     image_count: int = 0
     indexed_at: Optional[str] = None
-    status: str = "indexed"  # "indexed", "processing", "failed", "unindexed"
+    status: str = "indexed"
+    family: Optional[str] = None
+    year: Optional[str] = None
+    pages: List[int] = []
 
 
 class DocumentChunk(BaseModel):
@@ -61,11 +81,17 @@ class IndexStartRequest(BaseModel):
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
     ocr_char_threshold: Optional[int] = None
+    filenames: Optional[List[str]] = None
+
+
+class FileQueueItem(BaseModel):
+    name: str
+    status: str = "pending"  # pending | active | done | skipped
 
 
 class IndexStatus(BaseModel):
     is_running: bool = False
-    state: str = "idle"  # "idle", "scanning", "extracting", "ocr", "chunking", "embedding", "writing", "completed", "failed", "stopped"
+    state: str = "idle"
     processed_files: int = 0
     total_files: int = 0
     percentage: float = 0.0
@@ -75,6 +101,10 @@ class IndexStatus(BaseModel):
     estimated_remaining_seconds: float = 0.0
     total_chunks_indexed: int = 0
     error: Optional[str] = None
+    current_page: Optional[int] = None
+    worker_stage: Optional[str] = None  # extract | embed | write
+    filmstrip_url: Optional[str] = None
+    file_queue: List[FileQueueItem] = []
 
 
 class HealthStatus(BaseModel):
@@ -97,3 +127,34 @@ class HistoryItem(BaseModel):
     images_count: int = 0
     sources: List[SourceContext] = []
     images: List[ImageResult] = []
+    user_name: Optional[str] = None
+    answer_mode: Optional[str] = None
+    bookmarked: bool = False
+
+
+class BookmarkItem(BaseModel):
+    id: str
+    name: str
+    question: str
+    history_id: Optional[str] = None
+    created_at: str
+    collection: str = "default"
+
+
+class BookmarkCreate(BaseModel):
+    name: str
+    question: str
+    history_id: Optional[str] = None
+    collection: str = "default"
+
+
+class AuthRequest(BaseModel):
+    display_name: str
+    passcode: Optional[str] = None
+
+
+class BriefingRequest(BaseModel):
+    question: str
+    answer: str
+    sources: List[SourceContext] = []
+    user_name: Optional[str] = None

@@ -1,12 +1,12 @@
-﻿import shutil
+import shutil
 from pathlib import Path
 from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from app.core.config import UPLOADS_DIR
-from app.models.schemas import DocumentInfo, DocumentChunk
+from app.models.schemas import DocumentInfo, DocumentChunk, IndexStartRequest
 from app.services.vector_db import vector_db_service
-from app.services.indexer import tracker, SUPPORTED_EXTENSIONS
+from app.services.indexer import tracker, SUPPORTED_EXTENSIONS, indexing_service
 from app.core.logging_service import app_logger
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
@@ -48,7 +48,10 @@ async def list_documents():
             page_count=s["page_count"],
             chunk_count=s["chunk_count"],
             image_count=s["image_count"],
-            status="indexed"
+            status="indexed",
+            family=s.get("family"),
+            year=s.get("year"),
+            pages=s.get("pages") or [],
         )
         for s in stats
     ]
@@ -118,3 +121,17 @@ async def delete_document(filename: str):
         "deleted_chunks": deleted_chunks,
         "filename": filename
     }
+
+
+@router.post("/{filename}/reindex")
+async def reindex_document(filename: str):
+    """Delete existing chunks for one file and queue it for a fresh index pass."""
+    vector_db_service.delete_document_chunks(filename)
+    tracker.remove(filename)
+    target = UPLOADS_DIR / filename
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Original file is not in the uploads library.")
+    started = indexing_service.start_indexing(IndexStartRequest(filenames=[filename]))
+    if not started:
+        raise HTTPException(status_code=400, detail="An indexing job is already running.")
+    return {"success": True, "filename": filename, "status": indexing_service.get_status()}

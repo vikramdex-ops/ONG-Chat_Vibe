@@ -13,8 +13,9 @@ import {
   Palette
 } from 'lucide-react';
 import { AppSettings, HealthStatus } from '../../types';
-import { getSettings, updateSettings, testLLM } from '../../services/api';
+import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack, loginTeam } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
+import { readSession, writeSession } from '../../lib/session';
 
 interface SettingsViewProps {
   health: HealthStatus | null;
@@ -60,6 +61,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [customGeminiModel, setCustomGeminiModel] = useState(false);
+  const [lastOk, setLastOk] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState(readSession()?.display_name || '');
+  const [passcode, setPasscode] = useState('');
+  const [flipPro, setFlipPro] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -95,6 +100,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
         formData.llm_model_name
       );
       setTestResult(res);
+      if (res.success) setLastOk(new Date().toLocaleTimeString());
     } catch (e: any) {
       setTestResult({ success: false, message: e.message || 'Connection failed' });
     } finally {
@@ -180,12 +186,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
               <Server className="w-4 h-4 text-blue-500" />
               LLM Inference Provider
             </h4>
-            <span className="text-[11px] font-mono text-fg-muted">
-              Status: {health?.llm_server === 'connected' ? (
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Connected</span>
-              ) : (
-                <span className="text-rose-600 dark:text-rose-400 font-semibold">Disconnected</span>
-              )}
+            <span className="text-[11px] font-mono text-fg-muted flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${health?.llm_server === 'connected' || testResult?.success ? 'bg-emerald-500 worker-dot' : 'bg-rose-400'}`} />
+              {health?.llm_server === 'connected' || testResult?.success ? 'Connected' : 'Disconnected'}
+              {lastOk && <span className="text-fg-muted">last ok {lastOk}</span>}
             </span>
           </div>
 
@@ -334,9 +338,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
           </div>
 
           {isGemini && (
-            <p className="text-[11px] text-fg-muted">
-              Sign in with Google at AI Studio, paste your key, pick a model, then click Test. Status turns connected when the key is valid.
-            </p>
+            <>
+              <p className="text-[11px] text-fg-muted">
+                Sign in with Google at AI Studio, paste your key, pick a model, then click Test. Status turns connected when the key is valid.
+              </p>
+              <button type="button" onClick={() => {
+                setFlipPro((v) => !v);
+                const next = flipPro ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
+                setFormData({ ...formData, llm_model_name: next, gemini_model_name: next });
+              }} className="model-flip">
+                <span className="font-semibold">{flipPro ? 'Pro — deeper reasoning' : 'Flash — faster answers'}</span>
+                <span className="text-[11px] text-fg-muted block">Click to flip speed vs depth</span>
+              </button>
+            </>
           )}
 
           {testResult && (

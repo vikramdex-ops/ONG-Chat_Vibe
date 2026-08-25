@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { prefersReducedMotion } from '../../lib/motion';
 
 interface TiltCardProps {
   children: React.ReactNode;
@@ -11,7 +12,7 @@ export const TiltCard: React.FC<TiltCardProps> = ({ children, className = '', in
 
   const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || prefersReducedMotion()) return;
     const rect = el.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;

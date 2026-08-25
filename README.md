@@ -53,6 +53,13 @@ npm run dev
 
 Frontend available at **http://localhost:3000**
 
+`Ctrl+K` opens the command palette. A stable snapshot of the pre-upgrade app is tagged `stable-v2.0`.
+
+### Deploy notes
+
+- **Vercel (frontend):** set `VITE_API_BASE` to your hosted FastAPI `/api` origin. ChromaDB, uploads, and KB zip import stay on the API host (not serverless-friendly).
+- **Desktop `.exe`:** build the frontend (`npm run build`) then package `run_app.py` so FastAPI serves `frontend/dist`.
+
 ---
 
 ## Architecture
