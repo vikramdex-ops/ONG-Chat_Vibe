@@ -139,8 +139,43 @@
   will-change: transform;
 }
 
+.pipeline-stage {
+  perspective: 1200px;
+}
+
+.pipeline-3d {
+  transform-style: preserve-3d;
+}
+
 .pipeline-node {
   transform-style: preserve-3d;
+}
+
+.pipeline-flow {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgb(var(--line));
+  position: relative;
+  overflow: hidden;
+}
+
+.pipeline-flow-on {
+  background: linear-gradient(90deg, #60a5fa, #34d399);
+}
+
+.pipeline-flow-on::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, white, transparent);
+  animation: pipeline-dash 0.9s linear infinite;
+}
+
+@keyframes pipeline-dash {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
 }
 
 .pipeline-node-active {

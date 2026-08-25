@@ -36,7 +36,7 @@ def resolve_image_file(stored_or_name: str) -> Optional[Path]:
     if not stored_or_name:
         return None
 
-    raw = Path(str(stored_or_name).strip())
+    raw = Path(str(stored_or_name).strip().replace("\\", "/"))
     filename = raw.name
     if not filename or filename in {".", ".."}:
         return None
@@ -52,3 +52,25 @@ def resolve_image_file(stored_or_name: str) -> Optional[Path]:
         except OSError:
             continue
     return None
+
+
+def to_portable_image_refs(paths: List[str]) -> List[str]:
+    """Store only filenames so a copied knowledge base stays portable."""
+    names: List[str] = []
+    seen = set()
+    for raw in paths or []:
+        name = Path(str(raw).replace("\\", "/")).name
+        if not name or name in {".", ".."} or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def remount_image_paths(paths: List[str]) -> List[str]:
+    """Rewrite stored image refs to files that exist on this machine."""
+    remounted: List[str] = []
+    for raw in paths or []:
+        resolved = resolve_image_file(raw)
+        remounted.append(str(resolved) if resolved else Path(str(raw)).name)
+    return remounted

@@ -26,6 +26,7 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
   const [executionTimeMs, setExecutionTimeMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [selectedSourceForViewer, setSelectedSourceForViewer] = useState<SourceContext | null>(null);
+  const [pipelineStage, setPipelineStage] = useState<PipelineStage>('idle');
 
   useEffect(() => {
     if (initialQuestion) {
@@ -34,16 +35,6 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
   }, [initialQuestion]);
 
   const canAsk = question.trim().length > 0;
-
-  const pipelineStage: PipelineStage = error
-    ? 'error'
-    : isLoading && !sources.length
-    ? (statusMessage.toLowerCase().includes('generat') ? 'llm' : 'search')
-    : isLoading && sources.length > 0
-    ? (answer ? 'llm' : 'context')
-    : answer
-    ? 'complete'
-    : 'idle';
 
   const provider = (health?.details?.llm_provider as string | undefined) || 'gemini';
   const providerLabel = provider === 'gemini' ? 'Gemini LLM' : provider === 'mock' ? 'Mock LLM' : 'LLM';
@@ -56,6 +47,7 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
     setError(null);
     setStatusMessage('');
     setExecutionTimeMs(undefined);
+    setPipelineStage('idle');
   };
 
   const handleAsk = () => {
@@ -66,19 +58,25 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
     setImages([]);
     setError(null);
     setIsLoading(true);
-    setStatusMessage('Searching knowledge base...');
+    setStatusMessage('Preparing query…');
+    setPipelineStage('query');
 
     const startTime = Date.now();
 
     streamQuery(question.trim(), topK, {
       onStatus: (msg) => {
         setStatusMessage(msg);
+        const lower = msg.toLowerCase();
+        if (lower.includes('generat')) setPipelineStage('llm');
+        else if (lower.includes('search') || lower.includes('retriev') || lower.includes('embed')) setPipelineStage('search');
       },
       onContext: (data) => {
         setSources(data.context || []);
         setImages(data.images || []);
+        setPipelineStage('context');
       },
       onToken: (token) => {
+        setPipelineStage('llm');
         setAnswer((prev) => prev + token);
       },
       onComplete: (data: QueryResponse) => {
@@ -88,10 +86,12 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
         setIsLoading(false);
         setExecutionTimeMs(Date.now() - startTime);
         setStatusMessage('');
+        setPipelineStage('complete');
         if (onQueryComplete) onQueryComplete();
       },
       onError: (err) => {
         console.warn('Streaming failed, attempting fallback non-streaming query:', err);
+        setPipelineStage('llm');
         executeQuery(question.trim(), topK)
           .then((res) => {
             setAnswer(res.answer);
@@ -100,12 +100,14 @@ export const AskView: React.FC<AskViewProps> = ({ health, topK, initialQuestion,
             setIsLoading(false);
             setExecutionTimeMs(res.execution_time_ms || (Date.now() - startTime));
             setStatusMessage('');
+            setPipelineStage('complete');
             if (onQueryComplete) onQueryComplete();
           })
           .catch((nonStreamErr) => {
             setError(nonStreamErr.message || 'Failed to generate answer.');
             setIsLoading(false);
             setStatusMessage('');
+            setPipelineStage('error');
           });
       }
     });

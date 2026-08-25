@@ -7,6 +7,7 @@ from chromadb.config import Settings as ChromaSettings
 from app.core.config import settings, CHROMA_DIR
 from app.core.logging_service import app_logger
 from app.models.schemas import SourceContext, DocumentChunk
+from app.services.image_resolver import remount_image_paths
 
 
 def sanitize_filename(filename: str) -> str:
@@ -249,7 +250,9 @@ class VectorDBService:
                 page = int(meta.get("page", 1))
                 chunk_idx = int(meta.get("chunk_in_page", 1))
                 img_str = meta.get("image_paths_str", "")
-                img_list = [p.strip() for p in img_str.split("|") if p.strip()] if img_str else []
+                img_list = remount_image_paths(
+                    [p.strip() for p in img_str.split("|") if p.strip()] if img_str else []
+                )
 
                 chunks.append(
                     DocumentChunk(

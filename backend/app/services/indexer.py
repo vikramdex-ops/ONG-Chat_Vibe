@@ -1,4 +1,4 @@
-﻿import json
+import json
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,6 +22,7 @@ from app.services.document_parser.chunker import simple_chunker
 from app.services.document_parser.pdf_parser import parse_pdf_document
 from app.services.document_parser.pptx_parser import parse_pptx_document
 from app.services.document_parser.docx_parser import parse_docx_document
+from app.services.image_resolver import to_portable_image_refs
 
 
 SUPPORTED_EXTENSIONS = {".pdf", ".pptx", ".docx"}
@@ -169,7 +170,7 @@ class IndexingService:
                     "source": file_name,
                     "page": int(page_num),
                     "chunk_in_page": int(i + 1),
-                    "image_paths_str": "|".join(img_paths)
+                    "image_paths_str": "|".join(to_portable_image_refs(img_paths))
                 }
                 chunks.append({
                     "id": cid,

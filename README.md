@@ -96,9 +96,9 @@ run_app.py         Single-command launcher
 ## Portable Knowledge Base Distribution
 
 1. Build your knowledge base by indexing your O&G PDFs
-2. Copy the `backend/data/chroma_db/` and `backend/data/images/` folders to target machines
-3. On the target machine, set the ChromaDB path in Settings to the copied folder
-4. All vectors, chunks, and extracted images will work immediately
+2. Copy the `chroma_db/` folder **and** its sibling `images/` folder to the target machine
+3. In Settings, set **ChromaDB Path** to the copied `chroma_db` folder
+4. Images are resolved by filename, so old absolute paths from another computer still work
 
 ---
 
