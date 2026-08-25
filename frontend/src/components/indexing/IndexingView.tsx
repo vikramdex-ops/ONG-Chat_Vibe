@@ -259,7 +259,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               2. Processing Configuration
             </h3>
             <p className="text-xs text-fg-muted mt-0.5">
-              Configure worker threads, chunking windows, and launch resumable vectorization.
+              Digital PDFs are chunked from the PDF text layer. Scanned pages use ONNX OCR (Tesseract is optional). Stop aborts on the current page.
             </p>
           </div>
 
