@@ -33,9 +33,9 @@ export const AnswerCard: React.FC<AnswerCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
-  const ink = useInkType(answer, isLoading || (!!answer && false) ? true : isLoading);
-  const visible = isLoading || ink.length < answer.length ? ink : answer;
-  const stillWriting = visible.length < answer.length || isLoading;
+  const ink = useInkType(answer);
+  const visible = ink;
+  const stillWriting = isLoading || (answer.length > 0 && visible.length < answer.length);
   const sentences = useMemo(() => splitSentences(visible), [visible]);
 
   useEffect(() => {
