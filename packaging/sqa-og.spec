@@ -48,6 +48,7 @@ hiddenimports = [
     "app.api.routes.settings",
     "app.api.routes.history",
     "app.api.routes.workspace",
+    "app.api.routes.storage",
 ]
 
 frontend_dist = ROOT / "frontend" / "dist"
@@ -57,6 +58,17 @@ if frontend_dist.exists():
 logo = ROOT / "frontend" / "public" / "app-logo.png"
 if logo.exists():
     datas.append((str(logo), "frontend/public"))
+    datas.append((str(logo), "frontend/dist"))
+
+for extra_name in ("favicon.ico", "favicon.png"):
+    extra = ROOT / "frontend" / "public" / extra_name
+    if extra.exists():
+        datas.append((str(extra), "frontend/public"))
+        datas.append((str(extra), "frontend/dist"))
+
+ico_path = SPECDIR / "sqa-og.ico"
+if ico_path.exists():
+    datas.append((str(ico_path), "."))
 
 for pkg in (
     "chromadb",
@@ -94,7 +106,7 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-icon_path = ROOT / "frontend" / "public" / "favicon.png"
+icon_path = SPECDIR / "sqa-og.ico"
 exe = EXE(
     pyz,
     a.scripts,

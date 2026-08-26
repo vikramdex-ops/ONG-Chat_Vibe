@@ -51,6 +51,21 @@ def frontend_dist() -> Path:
     return backend_dir().parent / "frontend" / "dist"
 
 
+def existing_frontend_file(full_path: str) -> Path | None:
+    """Return a real file from the built UI (logo, favicon, assets) or None."""
+    if not full_path or full_path.endswith("/"):
+        return None
+    root = frontend_dist()
+    if not root.exists():
+        return None
+    try:
+        candidate = (root / full_path).resolve()
+        candidate.relative_to(root.resolve())
+    except Exception:
+        return None
+    return candidate if candidate.is_file() else None
+
+
 def resolve_data_dir() -> Path:
     override = (os.getenv("SQA_DATA_DIR") or "").strip()
     if override:

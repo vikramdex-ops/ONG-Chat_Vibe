@@ -13,7 +13,7 @@ File: `SQA-OG-windows.zip`
 ## Install
 
 1. Unzip anywhere (Desktop, `C:\Apps\SQA-OG`, a USB drive).
-2. Double-click `SQA-OG.exe` or `Launch-SQA-OG.bat`.
+2. Double-click `SQA-OG.exe` or `Launch-SQA-OG.bat`. The flame/circuit mark is the file icon and the taskbar icon.
 3. The browser opens at **http://127.0.0.1:8001**.
 4. Settings → **Get Free API Key** → paste your Gemini key (stays in this browser).
 5. Indexing → upload PDFs → **Start Indexing**. Wait for `Saved N vectors` and a non-zero Indexed count.

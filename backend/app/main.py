@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException
 
 from app.core.config import IMAGES_DIR, settings, cors_allow_origins
-from app.core.runtime import frontend_dist, runtime_info
+from app.core.runtime import existing_frontend_file, frontend_dist, runtime_info
 from app.core.logging_service import app_logger
 from app.core.request_context import set_request_llm, reset_request_llm
 from app.api.routes import health, query, documents, index, settings as settings_routes, history, workspace, storage
@@ -73,6 +73,9 @@ if FRONTEND_DIST.exists():
     async def serve_frontend(full_path: str):
         if full_path.startswith("api/") or full_path in {"docs", "redoc", "openapi.json"}:
             raise HTTPException(status_code=404, detail="Not Found")
+        asset = existing_frontend_file(full_path)
+        if asset:
+            return FileResponse(str(asset))
         index_path = FRONTEND_DIST / "index.html"
         if index_path.exists():
             return FileResponse(str(index_path))

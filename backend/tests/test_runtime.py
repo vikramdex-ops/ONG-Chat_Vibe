@@ -5,7 +5,7 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.core.runtime import is_ephemeral_host, resolve_data_dir, runtime_info
+from app.core.runtime import existing_frontend_file, is_ephemeral_host, resolve_data_dir, runtime_info
 from app.services.document_parser.pdf_parser import parse_pdf_document
 from app.services.vector_db import vector_db_service
 
@@ -32,6 +32,18 @@ def test_runtime_persistence_override(monkeypatch):
     monkeypatch.setenv("RENDER", "true")
     monkeypatch.setenv("SQA_PERSISTENCE", "durable")
     assert is_ephemeral_host() is False
+
+
+def test_existing_frontend_file_serves_logo_not_spa(tmp_path, monkeypatch):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "app-logo.png").write_bytes(b"\x89PNG\r\n")
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setattr("app.core.runtime.frontend_dist", lambda: dist)
+    logo = existing_frontend_file("app-logo.png")
+    assert logo is not None and logo.name == "app-logo.png"
+    assert existing_frontend_file("../secret.txt") is None
+    assert existing_frontend_file("missing.png") is None
 
 
 def test_data_dir_env_override(monkeypatch, tmp_path):
