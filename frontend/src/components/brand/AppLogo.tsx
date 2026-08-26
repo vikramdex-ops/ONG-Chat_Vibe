@@ -9,7 +9,7 @@ interface AppLogoProps {
 
 export const AppLogo: React.FC<AppLogoProps> = ({ size = 40, className = '', rounded = true }) => (
   <img
-    src={`${import.meta.env.BASE_URL}app-logo.png`}
+    src="/app-logo.png"
     alt="SQA-O&G"
     width={size}
     height={size}
