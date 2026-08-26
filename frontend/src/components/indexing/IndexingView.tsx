@@ -1,35 +1,35 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   UploadCloud,
   Play,
   Square,
-  FileText,
   Clock,
   CheckCircle2,
-  AlertTriangle,
-  XCircle,
   Cpu,
   Layers,
   Terminal,
-  Trash2,
-  RefreshCw,
   FolderOpen
 } from 'lucide-react';
-import { IndexStatus, LogEntry, AppSettings } from '../../types';
+import { IndexStatus, LogEntry, AppSettings, HealthStatus } from '../../types';
 import {
   startIndexing,
   stopIndexing,
   getIndexStatus,
   getIndexLogs,
-  uploadDocuments
+  uploadDocuments,
+  LiveStatus,
 } from '../../services/api';
+import { ConfettiBurst } from '../ui/ConfettiBurst';
+import { resolveApiUrl } from '../../lib/apiBase';
 
 interface IndexingViewProps {
   settings: AppSettings | null;
+  health?: HealthStatus | null;
+  live?: LiveStatus | null;
   onIndexingFinished?: () => void;
 }
 
-export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexingFinished }) => {
+export const IndexingView: React.FC<IndexingViewProps> = ({ settings, health, live, onIndexingFinished }) => {
   const [status, setStatus] = useState<IndexStatus>({
     is_running: false,
     state: 'idle',
@@ -55,8 +55,9 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const prevStateRef = useRef<string>('idle');
+  const [showConfetti, setShowConfetti] = useState(false);
 
-  // Poll status & logs periodically
   useEffect(() => {
     const fetchStatusAndLogs = async () => {
       try {
@@ -75,16 +76,25 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
     };
 
     fetchStatusAndLogs();
-    const interval = setInterval(fetchStatusAndLogs, status.is_running ? 1000 : 3000);
+    const interval = setInterval(fetchStatusAndLogs, (status.is_running || status.state === 'stopping') ? 1000 : 3000);
     return () => clearInterval(interval);
   }, [status.is_running, logFilter, onIndexingFinished]);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
+
+  useEffect(() => {
+    if (prevStateRef.current !== 'completed' && status.state === 'completed') {
+      setShowConfetti(true);
+      const timer = window.setTimeout(() => setShowConfetti(false), 3200);
+      prevStateRef.current = status.state;
+      return () => window.clearTimeout(timer);
+    }
+    prevStateRef.current = status.state;
+  }, [status.state]);
 
   const handleStart = async () => {
     try {
@@ -102,12 +112,15 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
 
   const handleStop = async () => {
     try {
-      const s = await stopIndexing();
+      const force = status.state === 'stopping';
+      const s = await stopIndexing(force);
       setStatus(s);
     } catch (e: any) {
       alert(e.message || 'Failed to stop indexing');
     }
   };
+
+  const isBusy = status.is_running || status.state === 'stopping';
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -132,26 +145,78 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* 1. Document Source & Upload Area */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/40 backdrop-blur-md">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/80">
+      <ConfettiBurst active={showConfetti} />
+      {(live?.persistence || health?.details?.persistence) === 'ephemeral' && (
+        <div className="panel p-4 border-rose-300 dark:border-rose-800/60 bg-rose-50/80 dark:bg-rose-950/30 text-xs text-rose-950 dark:text-rose-100">
+          <p className="font-semibold">Do not index a large library on this cloud host.</p>
+          <p className="mt-1 text-rose-900/80 dark:text-rose-100/80">
+            Free Render disk is empty after every sleep or redeploy — that is why previously saved chunks vanished. Page-level writes help a crash mid-PDF, but they cannot outlive a wiped disk. Use the Windows app from GitHub Releases for thousands of pages.
+          </p>
+        </div>
+      )}
+
+      {(status.file_queue && status.file_queue.length > 0) && (
+        <div className="panel p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-fg">Indexing deck</h4>
+            <div className="flex items-center gap-3 text-[10px] font-mono">
+              {['extract', 'embed', 'write'].map((stage) => (
+                <span key={stage} className="flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${status.worker_stage === stage ? 'bg-blue-500 worker-dot' : 'bg-line'}`} />
+                  {stage}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end gap-2 min-h-[88px] perspective-stack">
+            {status.file_queue.slice(0, 8).map((f, i) => (
+              <div
+                key={f.name}
+                className={`h-20 w-14 rounded-md border text-[9px] p-1 font-mono leading-tight ${
+                  f.status === 'active'
+                    ? 'bg-blue-600 text-white border-blue-400 -translate-y-3 z-10'
+                    : f.status === 'done'
+                    ? 'bg-surface-muted text-fg-muted border-line opacity-50'
+                    : 'bg-surface-card text-fg border-line'
+                }`}
+                style={{ transform: `rotate(${(i - 3) * 4}deg)` }}
+                title={f.name}
+              >
+                {f.name.slice(0, 18)}
+              </div>
+            ))}
+          </div>
+          {status.filmstrip_url && (
+            <div className="flex items-center gap-3">
+              <img src={resolveApiUrl(status.filmstrip_url)} alt="current page" className="h-20 rounded border border-line bg-white object-contain" />
+              <div className="text-xs text-fg-muted">
+                {status.current_file} · page {status.current_page || 1}
+              </div>
+            </div>
+          )}
+          <div className="text-[11px] text-fg-muted">
+            Resume ribbon: dim cards are already written; the lifted card is extracting now.
+          </div>
+        </div>
+      )}
+      <div className="panel p-6">
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-line">
           <div>
-            <h3 className="font-bold text-base text-white flex items-center gap-2">
-              <UploadCloud className="w-5 h-5 text-emerald-400" />
+            <h3 className="font-bold text-base text-fg flex items-center gap-2">
+              <UploadCloud className="w-5 h-5 text-emerald-500" />
               1. Document Source &amp; Staging
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-fg-muted mt-0.5">
               Select local folder or upload PDF, PPTX, and DOCX files into the knowledge base library.
             </p>
           </div>
           <div className="flex items-center gap-2 font-mono text-[11px]">
-            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30">.pdf</span>
-            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">.pptx</span>
-            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">.docx</span>
+            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">.pdf</span>
+            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">.pptx</span>
+            <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">.docx</span>
           </div>
         </div>
 
-        {/* Drag & Drop Box */}
         <div
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
@@ -159,7 +224,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
             e.preventDefault();
             handleFileUpload(e.dataTransfer.files);
           }}
-          className="border-2 border-dashed border-slate-700/80 hover:border-emerald-500/60 rounded-xl p-8 text-center cursor-pointer transition-all bg-slate-950/40 hover:bg-slate-950/70 group"
+          className="border-2 border-dashed border-line hover:border-emerald-500/60 rounded-xl p-8 text-center cursor-pointer transition-all bg-surface-input hover:bg-surface-muted group"
         >
           <input
             ref={fileInputRef}
@@ -169,58 +234,55 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
             onChange={(e) => handleFileUpload(e.target.files)}
             className="hidden"
           />
-          <UploadCloud className="w-10 h-10 text-slate-400 group-hover:text-emerald-400 mx-auto mb-3 transition-colors" />
-          <div className="text-sm font-semibold text-slate-200 group-hover:text-white">
+          <UploadCloud className="w-10 h-10 text-fg-muted group-hover:text-emerald-500 mx-auto mb-3 transition-colors" />
+          <div className="text-sm font-semibold text-fg group-hover:text-emerald-700 dark:group-hover:text-white">
             {isUploading ? 'Uploading documents...' : 'Click to Browse or Drag & Drop Documents Here'}
           </div>
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-xs text-fg-muted mt-1">
             Supports Oil &amp; Gas Technical Standards, Specs, and Manuals (.pdf, .pptx, .docx)
           </div>
         </div>
 
         {uploadMessage && (
-          <div className="mt-3 p-3 rounded-lg bg-emerald-950/50 border border-emerald-800/40 text-emerald-300 text-xs flex items-center gap-2 font-medium">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <div className="mt-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
             <span>{uploadMessage}</span>
           </div>
         )}
 
-        {/* Optional Custom Server Directory Entry */}
-        <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center gap-3">
-          <FolderOpen className="w-4 h-4 text-slate-400 shrink-0" />
+        <div className="mt-4 pt-3 border-t border-line flex items-center gap-3">
+          <FolderOpen className="w-4 h-4 text-fg-muted shrink-0" />
           <input
             type="text"
             value={customDirectory}
             onChange={(e) => setCustomDirectory(e.target.value)}
             placeholder="Custom server directory path (Optional, e.g. D:\Engineering_Standards)"
-            className="flex-1 bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
+            className="flex-1 bg-surface-input border border-line rounded-lg px-3 py-1.5 text-xs text-fg placeholder-fg-muted focus:outline-none focus:border-blue-500 font-mono"
           />
         </div>
       </div>
 
-      {/* 2. Processing Parameters & Controls */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/40 backdrop-blur-md">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/80">
+      <div className="panel p-6">
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-line">
           <div>
-            <h3 className="font-bold text-base text-white flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-indigo-400" />
+            <h3 className="font-bold text-base text-fg flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-indigo-500" />
               2. Processing Configuration
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Configure worker threads, chunking windows, and launch resumable vectorization.
+            <p className="text-xs text-fg-muted mt-0.5">
+              Digital PDFs use the text layer first. Thin or scanned pages run RapidOCR and Tesseract locally. Each page is written as soon as it is embedded. Wait for “Saved N vectors” and a non-zero Indexed count before asking.
             </p>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-3">
-            {status.is_running ? (
+            {isBusy ? (
               <button
                 type="button"
                 onClick={handleStop}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20 active:scale-[0.98] transition-all"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
-                <span>Stop Indexing</span>
+                <span>{status.state === 'stopping' ? 'Force stop' : 'Stop Indexing'}</span>
               </button>
             ) : (
               <button
@@ -236,22 +298,22 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-            <label className="text-xs font-semibold text-slate-300 block mb-1">Worker Threads</label>
+          <div className="bg-surface-input p-3.5 rounded-xl border border-line">
+            <label className="text-xs font-semibold text-fg block mb-1">Worker Threads</label>
             <input
               type="number"
               min={1}
               max={16}
-              disabled={status.is_running}
+              disabled={isBusy}
               value={workerCount}
               onChange={(e) => setWorkerCount(parseInt(e.target.value) || 1)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-card border border-line rounded-lg px-3 py-1.5 text-xs text-fg font-mono focus:outline-none focus:border-blue-500"
             />
-            <span className="text-[10px] text-slate-400 mt-1 block">Parallel file extraction threads</span>
+            <span className="text-[10px] text-fg-muted mt-1 block">Parallel file extraction threads</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-            <label className="text-xs font-semibold text-slate-300 block mb-1">Chunk Size (Words)</label>
+          <div className="bg-surface-input p-3.5 rounded-xl border border-line">
+            <label className="text-xs font-semibold text-fg block mb-1">Chunk Size (Words)</label>
             <input
               type="number"
               min={100}
@@ -260,13 +322,13 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               disabled={status.is_running}
               value={chunkSize}
               onChange={(e) => setChunkSize(parseInt(e.target.value) || 1000)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-card border border-line rounded-lg px-3 py-1.5 text-xs text-fg font-mono focus:outline-none focus:border-blue-500"
             />
-            <span className="text-[10px] text-slate-400 mt-1 block">Original SQA default: 1000 words</span>
+            <span className="text-[10px] text-fg-muted mt-1 block">Original SQA default: 1000 words</span>
           </div>
 
-          <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-            <label className="text-xs font-semibold text-slate-300 block mb-1">Chunk Overlap (Words)</label>
+          <div className="bg-surface-input p-3.5 rounded-xl border border-line">
+            <label className="text-xs font-semibold text-fg block mb-1">Chunk Overlap (Words)</label>
             <input
               type="number"
               min={0}
@@ -275,61 +337,59 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
               disabled={status.is_running}
               value={chunkOverlap}
               onChange={(e) => setChunkOverlap(parseInt(e.target.value) || 150)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-card border border-line rounded-lg px-3 py-1.5 text-xs text-fg font-mono focus:outline-none focus:border-blue-500"
             />
-            <span className="text-[10px] text-slate-400 mt-1 block">Original SQA default: 150 words</span>
+            <span className="text-[10px] text-fg-muted mt-1 block">Original SQA default: 150 words</span>
           </div>
         </div>
       </div>
 
-      {/* 3. Live Progress & Status Section */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/40 backdrop-blur-md">
-        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-800/80">
+      <div className="panel p-6">
+        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-line">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-blue-400" />
-            <h3 className="font-bold text-base text-white">Current Progress</h3>
+            <Layers className="w-5 h-5 text-blue-500" />
+            <h3 className="font-bold text-base text-fg">Current Progress</h3>
             <span
               className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded uppercase border ${
-                status.is_running
-                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 animate-pulse'
+                isBusy
+                  ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30 animate-pulse'
                   : status.state === 'completed'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
                   : status.state === 'failed'
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                  : 'bg-surface-muted text-fg-muted border-line'
               }`}
             >
               {status.state}
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
+          <div className="flex items-center gap-4 text-xs font-mono text-fg-muted">
             {status.elapsed_seconds > 0 && (
               <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <Clock className="w-3.5 h-3.5 text-fg-muted" />
                 Elapsed: {formatSeconds(status.elapsed_seconds)}
               </span>
             )}
             {status.is_running && status.estimated_remaining_seconds > 0 && (
-              <span className="text-amber-400">
+              <span className="text-amber-600 dark:text-amber-400">
                 ETA: {formatSeconds(status.estimated_remaining_seconds)}
               </span>
             )}
           </div>
         </div>
 
-        {/* Big Progress Bar */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-300">
+            <span className="font-medium text-fg">
               {status.processed_files} / {status.total_files} documents
             </span>
-            <span className="font-mono font-bold text-white text-sm">
+            <span className="font-mono font-bold text-fg text-sm">
               {status.percentage.toFixed(1)}%
             </span>
           </div>
 
-          <div className="w-full bg-slate-950 rounded-full h-3.5 p-0.5 border border-slate-800 overflow-hidden">
+          <div className="w-full bg-surface-input rounded-full h-3.5 p-0.5 border border-line overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 status.state === 'completed'
@@ -343,33 +403,30 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
           </div>
         </div>
 
-        {/* Telemetry info row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-xs bg-surface-input p-3 rounded-xl border border-line">
           <div>
-            <span className="text-slate-400">Current Document: </span>
-            <span className="font-semibold text-slate-200 font-mono">
+            <span className="text-fg-muted">Current Document: </span>
+            <span className="font-semibold text-fg font-mono">
               {status.current_file || 'None'}
             </span>
           </div>
           <div>
-            <span className="text-slate-400">Operation: </span>
-            <span className="font-semibold text-slate-300">
+            <span className="text-fg-muted">Operation: </span>
+            <span className="font-semibold text-fg">
               {status.current_operation || 'Idle'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 4. Real-time Structured Processing Logs Terminal */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/40 backdrop-blur-md">
-        <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-slate-800/80">
+      <div className="panel p-6">
+        <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-line">
           <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-amber-400" />
-            <h3 className="font-bold text-sm text-white">Live Processing Logs</h3>
-            <span className="text-[10px] font-mono text-slate-400">({logs.length} entries)</span>
+            <Terminal className="w-4 h-4 text-amber-500" />
+            <h3 className="font-bold text-sm text-fg">Live Processing Logs</h3>
+            <span className="text-[10px] font-mono text-fg-muted">({logs.length} entries)</span>
           </div>
 
-          {/* Level Filter Buttons */}
           <div className="flex items-center gap-1.5">
             {['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'].map((lvl) => (
               <button
@@ -379,7 +436,7 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
                 className={`text-[10px] font-mono px-2 py-0.5 rounded transition-colors ${
                   logFilter === lvl
                     ? 'bg-blue-600 text-white font-bold'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    : 'bg-surface-muted hover:bg-line text-fg'
                 }`}
               >
                 {lvl}
@@ -388,35 +445,34 @@ export const IndexingView: React.FC<IndexingViewProps> = ({ settings, onIndexing
           </div>
         </div>
 
-        {/* Terminal Log Console */}
         <div
           ref={logContainerRef}
-          className="h-64 overflow-y-auto bg-slate-950 rounded-xl p-3 font-mono text-xs border border-slate-800/80 space-y-1 select-text"
+          className="h-64 overflow-y-auto bg-surface-input rounded-xl p-3 font-mono text-xs border border-line space-y-1 select-text"
         >
           {logs.length === 0 ? (
-            <div className="text-slate-400 text-center py-10">No processing logs recorded yet.</div>
+            <div className="text-fg-muted text-center py-10">No processing logs recorded yet.</div>
           ) : (
             logs.map((l, idx) => {
               const colorClass =
                 l.level === 'SUCCESS'
-                  ? 'text-emerald-400'
+                  ? 'text-emerald-600 dark:text-emerald-400'
                   : l.level === 'WARNING'
-                  ? 'text-amber-400'
+                  ? 'text-amber-600 dark:text-amber-400'
                   : l.level === 'ERROR'
-                  ? 'text-rose-400'
+                  ? 'text-rose-600 dark:text-rose-400'
                   : l.level === 'DEBUG'
-                  ? 'text-slate-400'
-                  : 'text-blue-300';
+                  ? 'text-fg-muted'
+                  : 'text-blue-600 dark:text-blue-300';
 
               return (
-                <div key={idx} className="leading-relaxed flex items-start gap-2 hover:bg-slate-900/50 px-1.5 py-0.5 rounded">
-                  <span className="text-slate-400 shrink-0 select-none">[{l.timestamp}]</span>
+                <div key={idx} className="leading-relaxed flex items-start gap-2 hover:bg-surface-muted px-1.5 py-0.5 rounded">
+                  <span className="text-fg-muted shrink-0 select-none">[{l.timestamp}]</span>
                   <span className={`font-bold shrink-0 w-16 select-none ${colorClass}`}>{l.level}</span>
-                  <span className="text-indigo-400 shrink-0 select-none">[{l.operation}]</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 shrink-0 select-none">[{l.operation}]</span>
                   {l.document && (
-                    <span className="text-amber-300/80 shrink-0 select-none">&lt;{l.document}&gt;</span>
+                    <span className="text-amber-700 dark:text-amber-300/80 shrink-0 select-none">&lt;{l.document}&gt;</span>
                   )}
-                  <span className="text-slate-200">{l.message}</span>
+                  <span className="text-fg">{l.message}</span>
                 </div>
               );
             })

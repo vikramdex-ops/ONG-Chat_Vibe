@@ -1,12 +1,15 @@
+import json
 import re
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set
 import chromadb
 from chromadb.config import Settings as ChromaSettings
-from app.core.config import settings, CHROMA_DIR
+from app.core.config import settings, CHROMA_DIR, CHUNK_SNAPSHOT_PATH
 from app.core.logging_service import app_logger
 from app.models.schemas import SourceContext, DocumentChunk
+from app.services.image_resolver import remount_image_paths
+from app.services.standards import parse_standard_meta, matches_filters, keyword_boost
 
 
 def sanitize_filename(filename: str) -> str:
@@ -63,7 +66,74 @@ class VectorDBService:
                     name=self._collection_name,
                     metadata={"hnsw:space": "cosine"}
                 )
+                if self._collection.count() == 0:
+                    self._replay_snapshot(self._collection)
             return self._collection
+
+    def _replay_snapshot(self, coll) -> None:
+        if not CHUNK_SNAPSHOT_PATH.exists():
+            return
+        ids, docs, embs, metas = [], [], [], []
+        try:
+            with open(CHUNK_SNAPSHOT_PATH, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    ids.append(row["id"])
+                    docs.append(row["document"])
+                    embs.append(row["embedding"])
+                    metas.append(row.get("metadata") or {})
+            if not ids:
+                return
+            coll.upsert(ids=ids, documents=docs, embeddings=embs, metadatas=metas)
+            app_logger.success("VectorDB", f"Replayed {len(ids)} chunks from snapshot after an empty store.")
+        except Exception as exc:
+            app_logger.error("VectorDB", f"Snapshot replay failed: {exc}")
+
+    def _append_snapshot(self, ids, documents, embeddings, metadatas) -> None:
+        try:
+            with open(CHUNK_SNAPSHOT_PATH, "a", encoding="utf-8") as handle:
+                for cid, doc, emb, meta in zip(ids, documents, embeddings, metadatas):
+                    handle.write(json.dumps({
+                        "id": cid,
+                        "document": doc,
+                        "embedding": emb,
+                        "metadata": meta,
+                    }) + "\n")
+        except Exception as exc:
+            app_logger.warning("VectorDB", f"Could not append chunk snapshot: {exc}")
+
+    def close(self) -> None:
+        """Drop the client so the on-disk folder can be replaced (KB import / remount)."""
+        with self._init_lock:
+            self._collection = None
+            self._client = None
+
+    def remount(self, path: Optional[str] = None) -> None:
+        with self._init_lock:
+            self._collection = None
+            self._client = None
+            if path:
+                self._db_path = path
+
+    def indexed_pages(self, filename: str) -> Set[int]:
+        """Pages already written for this source file — used to resume a killed index job."""
+        try:
+            coll = self.get_collection()
+            results = coll.get(where={"source": filename}, include=["metadatas"])
+            pages: Set[int] = set()
+            for meta in results.get("metadatas") or []:
+                if meta and meta.get("page") is not None:
+                    try:
+                        pages.add(int(meta["page"]))
+                    except (TypeError, ValueError):
+                        continue
+            return pages
+        except Exception as e:
+            app_logger.warning("VectorDB", f"Could not list indexed pages for '{filename}': {e}")
+            return set()
 
     def count(self) -> int:
         """Return total indexed chunks in the collection."""
@@ -74,17 +144,25 @@ class VectorDBService:
             app_logger.error("VectorDB", f"Failed to get collection count: {e}")
             return 0
 
-    def query(self, query_embedding: List[float], top_k: int = 3) -> List[SourceContext]:
-        """Perform similarity search for Top-K most relevant chunks."""
+    def query(
+        self,
+        query_embedding: List[float],
+        top_k: int = 3,
+        family: Optional[str] = None,
+        year: Optional[str] = None,
+        document: Optional[str] = None,
+        keyword_terms: Optional[List[str]] = None,
+    ) -> List[SourceContext]:
+        """Hybrid similarity + keyword search with optional standard filters."""
         coll = self.get_collection()
         total_count = coll.count()
         if total_count == 0:
             return []
 
-        actual_k = min(top_k, total_count)
+        fetch_k = min(max(top_k * 4, top_k), total_count)
         results = coll.query(
             query_embeddings=[query_embedding],
-            n_results=actual_k,
+            n_results=fetch_k,
             include=["documents", "metadatas", "distances"]
         )
 
@@ -96,16 +174,31 @@ class VectorDBService:
         metadatas = results["metadatas"][0] if results.get("metadatas") else [{}] * len(docs)
         ids = results["ids"][0] if results.get("ids") else [""] * len(docs)
         distances = results["distances"][0] if results.get("distances") else [0.0] * len(docs)
+        terms = keyword_terms or []
 
         for doc_id, doc_text, meta, dist in zip(ids, docs, metadatas, distances):
             meta = meta or {}
             source_file = meta.get("source", "Unknown Document")
+            if not matches_filters(source_file, family=family, year=year, document=document):
+                continue
+
             page = int(meta.get("page", 1))
             chunk_num = int(meta.get("chunk_in_page", 1))
             image_paths_str = meta.get("image_paths_str", "")
-            
-            image_paths = [p.strip() for p in image_paths_str.split("|") if p.strip()] if image_paths_str else []
+            image_paths = remount_image_paths(
+                [p.strip() for p in image_paths_str.split("|") if p.strip()] if image_paths_str else []
+            )
             similarity = max(0.0, min(1.0, 1.0 - float(dist)))
+            boost = keyword_boost(f"{source_file} {doc_text}", terms)
+            hybrid = round((similarity * 0.72) + (boost * 0.28), 4)
+            std = parse_standard_meta(source_file)
+            reasons = [f"{int(similarity * 100)}% vector match"]
+            if boost > 0:
+                reasons.append(f"keyword hit {int(boost * 100)}%")
+            if std.get("family"):
+                reasons.append(std["family"])
+            if std.get("year"):
+                reasons.append(std["year"])
 
             sources.append(
                 SourceContext(
@@ -114,12 +207,16 @@ class VectorDBService:
                     page=page,
                     chunk=chunk_num,
                     text=doc_text,
-                    score=round(similarity, 4),
-                    image_paths=image_paths
+                    score=hybrid,
+                    image_paths=image_paths,
+                    family=std.get("family"),
+                    year=std.get("year"),
+                    rank_reason="; ".join(reasons),
                 )
             )
 
-        return sources
+        sources.sort(key=lambda s: s.score or 0, reverse=True)
+        return sources[:top_k]
 
     def add_chunks_batch(
         self,
@@ -170,7 +267,15 @@ class VectorDBService:
                 embeddings=b_embs,
                 metadatas=b_metas
             )
+            self._append_snapshot(b_ids, b_docs, b_embs, b_metas)
             total_added += len(b_ids)
+
+        try:
+            persist = getattr(self._client, "persist", None)
+            if callable(persist):
+                persist()
+        except Exception:
+            pass
 
         app_logger.success("VectorDB", f"Added {total_added} new chunks to ChromaDB collection '{self._collection_name}'.")
         return total_added
@@ -249,7 +354,9 @@ class VectorDBService:
                 page = int(meta.get("page", 1))
                 chunk_idx = int(meta.get("chunk_in_page", 1))
                 img_str = meta.get("image_paths_str", "")
-                img_list = [p.strip() for p in img_str.split("|") if p.strip()] if img_str else []
+                img_list = remount_image_paths(
+                    [p.strip() for p in img_str.split("|") if p.strip()] if img_str else []
+                )
 
                 chunks.append(
                     DocumentChunk(

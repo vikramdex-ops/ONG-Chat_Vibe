@@ -3,19 +3,31 @@ from typing import AsyncGenerator, Dict, Any, Optional, List
 import httpx
 from app.services.llm.base import BaseLLMProvider
 from app.core.config import settings
+from app.core.gemini_models import DEFAULT_GEMINI_MODEL, normalize_gemini_model
 from app.core.logging_service import app_logger
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+def _word_packets(text: str):
+    buf = ""
+    for ch in text:
+        buf += ch
+        if ch.isspace() and len(buf) >= 2:
+            yield buf
+            buf = ""
+    if buf:
+        yield buf
+
 
 class GeminiLLMProvider(BaseLLMProvider):
     """Integrates directly with Google Gemini REST API using the user's free API key."""
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.llm_api_key or ""
-        self.model = model or settings.llm_model_name or "gemini-2.5-flash"
-        # Normalize model name if user typed prefix
-        if self.model.startswith("models/"):
-            self.model = self.model.replace("models/", "")
+        self.api_key = api_key or settings.llm_api_key or settings.gemini_api_key or ""
+        self.model = normalize_gemini_model(
+            model or settings.llm_model_name or settings.gemini_model_name or DEFAULT_GEMINI_MODEL
+        )
 
     def _get_url(self, action: str = "generateContent") -> str:
         return f"{GEMINI_API_BASE}/{self.model}:{action}?key={self.api_key}"
@@ -96,15 +108,16 @@ class GeminiLLMProvider(BaseLLMProvider):
         if stop:
             payload["generationConfig"]["stopSequences"] = stop
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             try:
                 async with client.stream("POST", url, json=payload, headers={"Content-Type": "application/json"}) as response:
                     if response.status_code != 200:
-                        # Fallback to non-streaming
                         full_text = await self.generate(prompt, max_tokens, temperature, stop)
-                        yield full_text
+                        for packet in _word_packets(full_text):
+                            yield packet
                         return
 
+                    seen = ""
                     async for line in response.aiter_lines():
                         if not line or not line.startswith("data:"):
                             continue
@@ -114,18 +127,27 @@ class GeminiLLMProvider(BaseLLMProvider):
                         try:
                             chunk = json.loads(data_str)
                             candidates = chunk.get("candidates", [])
-                            if candidates:
-                                parts = candidates[0].get("content", {}).get("parts", [])
-                                for p in parts:
-                                    t = p.get("text", "")
-                                    if t:
-                                        yield t
+                            if not candidates:
+                                continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            piece = "".join(p.get("text", "") for p in parts if p.get("text"))
+                            if not piece:
+                                continue
+                            if piece.startswith(seen):
+                                delta = piece[len(seen):]
+                                seen = piece
+                            else:
+                                delta = piece
+                                seen += piece
+                            if delta:
+                                yield delta
                         except Exception:
                             continue
             except Exception as e:
-                app_logger.warning("GeminiLLM", f"Stream error ({e}), falling back to non-streaming...")
+                app_logger.warning("GeminiLLM", f"Stream error ({e}), falling back to paced non-streaming...")
                 full_text = await self.generate(prompt, max_tokens, temperature, stop)
-                yield full_text
+                for packet in _word_packets(full_text):
+                    yield packet
 
     async def check_health(self) -> Dict[str, Any]:
         if not self.api_key:

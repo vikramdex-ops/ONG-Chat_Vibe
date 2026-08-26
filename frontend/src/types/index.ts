@@ -1,4 +1,4 @@
-﻿export interface SourceContext {
+export interface SourceContext {
   id: string;
   source: string;
   page: number;
@@ -6,6 +6,9 @@
   text: string;
   score?: number;
   image_paths: string[];
+  family?: string | null;
+  year?: string | null;
+  rank_reason?: string | null;
 }
 
 export interface ImageResult {
@@ -16,12 +19,32 @@ export interface ImageResult {
   filename: string;
 }
 
+export interface ChatTurn {
+  question: string;
+  answer: string;
+}
+
+export type AnswerMode = 'concise' | 'quoted' | 'checklist';
+
+export interface QueryRequest {
+  question: string;
+  top_k?: number;
+  answer_mode?: AnswerMode;
+  family?: string;
+  year?: string;
+  document?: string;
+  compare_documents?: string[];
+  history?: ChatTurn[];
+}
+
 export interface QueryResponse {
   answer: string;
   context: SourceContext[];
   images: ImageResult[];
   db_count: number;
   execution_time_ms: number;
+  answer_mode?: AnswerMode;
+  compare?: boolean;
 }
 
 export interface DocumentInfo {
@@ -34,6 +57,9 @@ export interface DocumentInfo {
   image_count: number;
   indexed_at?: string;
   status: 'indexed' | 'processing' | 'failed' | 'unindexed';
+  family?: string | null;
+  year?: string | null;
+  pages?: number[];
 }
 
 export interface DocumentChunk {
@@ -45,9 +71,14 @@ export interface DocumentChunk {
   image_paths: string[];
 }
 
+export interface FileQueueItem {
+  name: string;
+  status: 'pending' | 'active' | 'done' | 'skipped' | string;
+}
+
 export interface IndexStatus {
   is_running: boolean;
-  state: 'idle' | 'scanning' | 'extracting' | 'ocr' | 'chunking' | 'embedding' | 'writing' | 'completed' | 'failed' | 'stopping' | 'stopped';
+  state: 'idle' | 'scanning' | 'extracting' | 'ocr' | 'chunking' | 'embedding' | 'writing' | 'completed' | 'failed' | 'stopping' | 'stopped' | 'processing';
   processed_files: number;
   total_files: number;
   percentage: number;
@@ -57,6 +88,11 @@ export interface IndexStatus {
   estimated_remaining_seconds: number;
   total_chunks_indexed: number;
   error?: string | null;
+  current_page?: number | null;
+  total_pages?: number | null;
+  worker_stage?: string | null;
+  filmstrip_url?: string | null;
+  file_queue?: FileQueueItem[];
 }
 
 export interface LogEntry {
@@ -82,6 +118,8 @@ export interface AppSettings {
   llm_server_url: string;
   llm_api_key?: string | null;
   llm_model_name: string;
+  gemini_api_key?: string | null;
+  gemini_model_name?: string | null;
   llm_max_tokens: number;
   llm_temperature: number;
   llm_stop_strings: string[];
@@ -107,6 +145,17 @@ export interface HistoryItem {
   images_count: number;
   sources: SourceContext[];
   images: ImageResult[];
+  answer_mode?: string | null;
+  bookmarked?: boolean;
+}
+
+export interface BookmarkItem {
+  id: string;
+  name: string;
+  question: string;
+  history_id?: string | null;
+  collection: string;
+  created_at: string;
 }
 
 export type TabType = 'ask' | 'indexing' | 'documents' | 'history' | 'settings' | 'about';

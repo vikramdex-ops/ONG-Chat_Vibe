@@ -11,6 +11,14 @@ from app.main import app
 client = TestClient(app)
 
 
+def test_api_health_live():
+    res = client.get("/api/health/live")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["service"] == "sqa-og"
+
+
 def test_api_health():
     res = client.get("/api/health")
     assert res.status_code == 200
@@ -43,6 +51,20 @@ def test_api_indexing_status():
     assert "state" in data
 
 
+def test_delete_unindexed_missing_is_ok():
+    res = client.delete("/api/documents/not-a-real-file.pdf")
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+
+
+def test_api_index_stop_when_idle():
+    res = client.post("/api/index/stop")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_running"] is False
+    assert data["state"] in {"stopped", "idle"}
+
+
 def test_api_query_validation():
     # Empty question should return 422 or 400
     res = client.post("/api/query", json={"question": ""})
@@ -58,3 +80,47 @@ def test_api_query_mock_flow():
     assert "context" in data
     assert "images" in data
     assert "db_count" in data
+
+
+def test_api_test_llm_gemini_missing_key():
+    res = client.post(
+        "/api/settings/test-llm",
+        json={"url": "", "provider": "gemini", "api_key": ""},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert "key" in data["message"].lower()
+
+
+def test_api_test_llm_mock():
+    res = client.post(
+        "/api/settings/test-llm",
+        json={"url": "", "provider": "mock"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["status"] == "connected"
+
+
+def test_api_save_gemini_settings():
+    from app.core.config import settings_manager, AppSettings
+
+    original = settings_manager.current.model_copy(deep=True)
+    try:
+        payload = original.model_dump()
+        payload.update({
+            "llm_provider": "gemini",
+            "llm_server_url": "",
+            "llm_api_key": "test-key",
+            "llm_model_name": "default",
+        })
+        res = client.put("/api/settings", json=payload)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["llm_provider"] == "gemini"
+        assert data["llm_model_name"] == "gemini-3.6-flash"
+        assert data["llm_server_url"].startswith("https://")
+    finally:
+        settings_manager.save_settings(original)

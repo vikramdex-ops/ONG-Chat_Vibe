@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import os
 import sys
 from pathlib import Path
@@ -11,7 +11,7 @@ from app.services.document_parser.chunker import simple_chunker
 from app.services.vector_db import sanitize_filename, generate_chunk_id, vector_db_service
 from app.services.rag import construct_prompt, resolve_images
 from app.models.schemas import SourceContext, ImageResult
-from app.core.config import settings
+from app.core.config import settings, public_media_url, cors_allow_origins
 
 
 def test_chunker_short_text():
@@ -19,6 +19,17 @@ def test_chunker_short_text():
     chunks = simple_chunker(text, chunk_size=100, chunk_overlap=20)
     assert len(chunks) == 1
     assert chunks[0] == text
+
+
+def test_chunker_builds_from_extracted_pdf_text():
+    text = (
+        "ASME B16.5 Pipe Flanges and Flanged Fittings. "
+        "Hydrostatic test shall be conducted at 1.5 times design pressure. "
+        "Material shall conform to the applicable ASTM specification."
+    )
+    chunks = simple_chunker(text, chunk_size=80, chunk_overlap=15)
+    assert chunks
+    assert any("Hydrostatic" in c or "ASME" in c for c in chunks)
 
 
 def test_chunker_overlap():
@@ -87,7 +98,89 @@ def test_resolve_images():
     assert images[0].url == "/api/images/api650_p42_img0.png"
 
 
+def test_request_scoped_gemini_key():
+    from app.core.request_context import set_request_llm, reset_request_llm
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.gemini_llm import GeminiLLMProvider
+
+    tokens = set_request_llm("user-browser-key", "gemini-2.5-flash", "gemini")
+    try:
+        provider = get_llm_provider()
+        assert isinstance(provider, GeminiLLMProvider)
+        assert provider.api_key == "user-browser-key"
+    finally:
+        reset_request_llm(tokens)
+
+
+def test_choose_embedding_backend_onnx(monkeypatch):
+    from app.services.embeddings import choose_embedding_backend
+
+    monkeypatch.setenv("SQA_EMBEDDING_BACKEND", "onnx")
+    assert choose_embedding_backend() == "onnx"
+
+
+def test_public_media_url_passthrough(monkeypatch):
+    monkeypatch.delenv("PUBLIC_API_URL", raising=False)
+    assert public_media_url("/api/images/fig.png") == "/api/images/fig.png"
+
+
+def test_public_media_url_prefix(monkeypatch):
+    monkeypatch.setenv("PUBLIC_API_URL", "https://demo.hf.space")
+    assert public_media_url("/api/images/fig.png") == "https://demo.hf.space/api/images/fig.png"
+    monkeypatch.setenv("PUBLIC_API_URL", "https://demo.hf.space/api")
+    assert public_media_url("/api/images/fig.png") == "https://demo.hf.space/api/images/fig.png"
+
+
+def test_cors_origins_star(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    assert cors_allow_origins() == ["*"]
+
+
 def test_vector_db_service_count():
     count = vector_db_service.count()
     assert isinstance(count, int)
     assert count >= 0
+
+
+def test_factory_returns_gemini():
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.gemini_llm import GeminiLLMProvider
+
+    provider = get_llm_provider("gemini")
+    assert isinstance(provider, GeminiLLMProvider)
+
+
+def test_factory_returns_mock():
+    from app.services.llm.factory import get_llm_provider
+    from app.services.llm.mock_llm import MockLLMProvider
+
+    provider = get_llm_provider("mock")
+    assert isinstance(provider, MockLLMProvider)
+
+
+def test_standard_meta_and_hybrid_keywords():
+    from app.services.standards import parse_standard_meta, extract_keyword_terms, matches_filters, keyword_boost
+
+    meta = parse_standard_meta("ASME B16.5-1996.pdf")
+    assert meta["family"] == "ASME"
+    assert meta["year"] == "1996"
+    terms = extract_keyword_terms("What is API 650 5.2.2 hydrotest?")
+    assert any("650" in t or t.upper() == "API" for t in terms)
+    assert matches_filters("API 650 2020.pdf", family="API", year="2020")
+    assert not matches_filters("ISO 9001.pdf", family="API")
+    assert keyword_boost("API 650 hydrostatic test", ["API 650"]) > 0
+
+
+def test_prompt_requires_citations():
+    sources = [
+        SourceContext(
+            id="test_1",
+            source="API_650.pdf",
+            page=42,
+            chunk=1,
+            text="Hydrostatic test shall be conducted at 1.5 times design pressure."
+        )
+    ]
+    prompt = construct_prompt("What is the test pressure for API 650?", sources, answer_mode="quoted")
+    assert "[S1]" in prompt
+    assert "citation" in prompt.lower() or "Cite" in prompt or "MUST" in prompt

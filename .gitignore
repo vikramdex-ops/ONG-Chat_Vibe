@@ -8,6 +8,7 @@ __pycache__/
 dist/
 build/
 *.spec
+!packaging/*.spec
 .venv/
 venv/
 env/
@@ -23,14 +24,23 @@ htmlcov/
 backend/data/chroma_db/
 backend/data/images/
 backend/data/uploads/
+backend/data/imported_kb/
 backend/data/processed_files.json
 backend/data/query_history.db
 backend/data/history.db
 backend/data/settings.json
+backend/data/chunk_snapshot.jsonl
+backend/data/storage.json
+
+# Desktop packaging output
+dist-desktop/
+SQA-OG-windows.zip
+packaging/tesseract-runtime/
 
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/tsconfig.tsbuildinfo
 
 # OS
 .DS_Store

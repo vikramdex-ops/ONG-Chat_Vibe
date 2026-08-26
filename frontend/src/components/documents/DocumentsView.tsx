@@ -1,18 +1,16 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Search,
   FileText,
   Trash2,
-  Eye,
   Layers,
-  Sparkles,
   RefreshCw,
   Image as ImageIcon,
   X
 } from 'lucide-react';
 import { DocumentInfo, DocumentChunk } from '../../types';
-import { getDocuments, deleteDocument, getDocumentChunks } from '../../services/api';
+import { getDocuments, deleteDocument, getDocumentChunks, reindexDocument } from '../../services/api';
 
 export const DocumentsView: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
@@ -21,6 +19,9 @@ export const DocumentsView: React.FC = () => {
   const [selectedDocForChunks, setSelectedDocForChunks] = useState<string | null>(null);
   const [docChunks, setDocChunks] = useState<DocumentChunk[]>([]);
   const [isLoadingChunks, setIsLoadingChunks] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [constellationDoc, setConstellationDoc] = useState<DocumentInfo | null>(null);
+  const [pageFilter, setPageFilter] = useState<number | null>(null);
 
   const fetchDocs = async () => {
     setIsLoading(true);
@@ -39,14 +40,14 @@ export const DocumentsView: React.FC = () => {
   }, []);
 
   const handleDelete = async (filename: string) => {
-    if (!window.confirm(`Are you sure you want to remove '${filename}' from the indexed knowledge base?`)) {
+    if (!window.confirm(`Remove unindexed upload '${filename}' from the staging library?`)) {
       return;
     }
     try {
       await deleteDocument(filename);
       await fetchDocs();
     } catch (e: any) {
-      alert(`Failed to delete document: ${e.message}`);
+      alert(e.message || 'Failed to remove document');
     }
   };
 
@@ -64,41 +65,46 @@ export const DocumentsView: React.FC = () => {
     }
   };
 
+  const counts = {
+    PDF: documents.filter((d) => d.file_type === 'PDF').length,
+    PPTX: documents.filter((d) => d.file_type === 'PPTX').length,
+    DOCX: documents.filter((d) => d.file_type === 'DOCX').length,
+  };
   const filteredDocs = documents.filter((d) =>
-    d.filename.toLowerCase().includes(search.toLowerCase())
+    d.filename.toLowerCase().includes(search.toLowerCase()) &&
+    (typeFilter === 'ALL' || d.file_type === typeFilter)
   );
+  const visibleChunks = pageFilter == null ? docChunks : docChunks.filter((c) => c.page_number === pageFilter);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header Card */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/40 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="panel p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="font-bold text-base text-white flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-amber-400" />
+          <h3 className="font-bold text-base text-fg flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5 text-amber-500" />
             Knowledge Base Document Library
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-fg-muted mt-0.5">
             Browse indexed engineering standards, inspect extracted vector chunks, or remove obsolete files.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Search bar */}
           <div className="relative w-full md:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-fg-muted absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search documents..."
-              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-input border border-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-fg placeholder-fg-muted focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <button
             type="button"
             onClick={fetchDocs}
-            className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+            className="p-2 rounded-xl text-fg-muted hover:text-fg bg-surface-muted hover:bg-line border border-line transition-colors"
             title="Refresh document catalog"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -106,12 +112,45 @@ export const DocumentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Documents Table */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl shadow-black/40 overflow-hidden backdrop-blur-md">
+      <div className="flex flex-wrap gap-2">
+        {(['ALL', 'PDF', 'PPTX', 'DOCX'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTypeFilter(t)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              typeFilter === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface-card border-line text-fg'
+            }`}
+          >
+            {t} {t === 'ALL' ? documents.length : counts[t as 'PDF' | 'PPTX' | 'DOCX']}
+          </button>
+        ))}
+      </div>
+
+      {constellationDoc && (constellationDoc.pages || []).length > 0 && (
+        <div className="panel p-4">
+          <div className="text-xs font-semibold text-fg mb-2">Chunk constellation · {constellationDoc.filename}</div>
+          <div className="flex flex-wrap gap-2">
+            {(constellationDoc.pages || []).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => { setPageFilter(page); handleInspectChunks(constellationDoc.filename); }}
+                className="w-8 h-8 rounded-full border border-line bg-blue-500/15 text-[10px] font-mono text-fg hover:bg-blue-600 hover:text-white"
+                title={`Open page ${page}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 font-mono uppercase text-[10px] tracking-wider">
+              <tr className="bg-surface-muted/80 border-b border-line text-fg-muted font-mono uppercase text-[10px] tracking-wider">
                 <th className="py-3.5 px-5">Filename</th>
                 <th className="py-3.5 px-4">Type</th>
                 <th className="py-3.5 px-4">Pages / Slides</th>
@@ -121,34 +160,34 @@ export const DocumentsView: React.FC = () => {
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-line">
               {filteredDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 text-xs">
+                  <td colSpan={7} className="text-center py-12 text-fg-muted text-xs">
                     {search ? 'No matching documents found.' : 'No documents indexed in knowledge base yet.'}
                   </td>
                 </tr>
               ) : (
                 filteredDocs.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-800/40 transition-colors group">
-                    <td className="py-3.5 px-5 font-semibold text-slate-200 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-400 shrink-0" />
+                  <tr key={doc.id} className="hover:bg-surface-muted/60 transition-colors group">
+                    <td className="py-3.5 px-5 font-semibold text-fg flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-500 shrink-0" />
                       <span className="truncate max-w-sm" title={doc.filename}>{doc.filename}</span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-muted text-fg border border-line">
                         {doc.file_type}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-300">
+                    <td className="py-3.5 px-4 font-mono text-fg">
                       {doc.page_count > 0 ? doc.page_count : '-'}
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-white">
+                    <td className="py-3.5 px-4 font-mono font-bold text-fg">
                       {doc.chunk_count > 0 ? doc.chunk_count : '-'}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-300">
+                    <td className="py-3.5 px-4 font-mono text-fg">
                       {doc.image_count > 0 ? (
-                        <span className="flex items-center gap-1 text-indigo-300">
+                        <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-300">
                           <ImageIcon className="w-3 h-3" />
                           {doc.image_count}
                         </span>
@@ -160,8 +199,8 @@ export const DocumentsView: React.FC = () => {
                       <span
                         className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${
                           doc.status === 'indexed'
-                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                            : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
                         }`}
                       >
                         {doc.status}
@@ -172,19 +211,25 @@ export const DocumentsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleInspectChunks(doc.filename)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-surface-muted hover:bg-line text-fg border border-line text-[11px] transition-colors"
                         >
                           Inspect Chunks
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(doc.filename)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
-                        title="Delete document chunks from vector database"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {doc.status === 'unindexed' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(doc.filename)}
+                          className="p-1.5 rounded-lg text-fg-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Remove unindexed upload"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-fg-muted font-mono px-1" title="Indexed standards cannot be deleted">
+                          locked
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -194,22 +239,21 @@ export const DocumentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Chunks Inspector Modal */}
       {selectedDocForChunks && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="h-14 px-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-card border border-line rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="h-14 px-6 border-b border-line flex items-center justify-between bg-surface-muted/60 shrink-0">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-400" />
-                <h3 className="font-semibold text-sm text-white">Chunks in {selectedDocForChunks}</h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                <Layers className="w-4 h-4 text-blue-500" />
+                <h3 className="font-semibold text-sm text-fg">Chunks in {selectedDocForChunks}</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                   {docChunks.length} chunks
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedDocForChunks(null)}
-                className="p-1.5 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 text-fg-muted hover:text-fg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -217,17 +261,17 @@ export const DocumentsView: React.FC = () => {
 
             <div className="p-6 overflow-y-auto space-y-4">
               {isLoadingChunks ? (
-                <div className="py-12 text-center text-slate-400 text-xs">Loading chunks from ChromaDB...</div>
+                <div className="py-12 text-center text-fg-muted text-xs">Loading chunks from ChromaDB...</div>
               ) : docChunks.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs">No chunks retrieved for this document.</div>
+                <div className="py-12 text-center text-fg-muted text-xs">No chunks retrieved for this document.</div>
               ) : (
-                docChunks.map((chunk, idx) => (
-                  <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pb-1 border-b border-slate-800/80">
-                      <span className="text-blue-400 font-semibold">Page {chunk.page_number} • Chunk #{chunk.chunk_index}</span>
+                visibleChunks.map((chunk, idx) => (
+                  <div key={idx} className="bg-surface-input p-4 rounded-xl border border-line space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-fg-muted pb-1 border-b border-line">
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold">Page {chunk.page_number} • Chunk #{chunk.chunk_index}</span>
                       <span>ID: {chunk.id}</span>
                     </div>
-                    <div className="font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
+                    <div className="font-mono text-xs text-fg leading-relaxed whitespace-pre-wrap">
                       {chunk.text}
                     </div>
                   </div>
