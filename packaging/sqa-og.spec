@@ -9,6 +9,16 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 SPECDIR = Path(SPEC).resolve().parent
 ROOT = SPECDIR.parent
 
+if os.name == "nt":
+    import subprocess
+
+    bundle = SPECDIR / "bundle_tesseract.ps1"
+    if bundle.exists() and not (SPECDIR / "tesseract-runtime" / "tesseract.exe").exists():
+        subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(bundle)],
+            check=False,
+        )
+
 datas = []
 binaries = []
 hiddenimports = [
@@ -40,6 +50,8 @@ hiddenimports = [
     "numpy",
     "sse_starlette",
     "multipart",
+    "tokenizers",
+    "tokenizers.tokenizers",
     "app.main",
     "app.api.routes.health",
     "app.api.routes.query",
@@ -70,9 +82,14 @@ ico_path = SPECDIR / "sqa-og.ico"
 if ico_path.exists():
     datas.append((str(ico_path), "."))
 
+tess_runtime = SPECDIR / "tesseract-runtime"
+if (tess_runtime / "tesseract.exe").exists():
+    datas.append((str(tess_runtime), "tesseract"))
+
 for pkg in (
     "chromadb",
     "onnxruntime",
+    "tokenizers",
     "rapidocr_onnxruntime",
     "chromadb.utils.embedding_functions",
 ):

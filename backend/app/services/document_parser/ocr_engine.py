@@ -10,8 +10,11 @@ engine and headings from another both land in the chunk.
 
 from __future__ import annotations
 
+import os
+import sys
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -46,6 +49,55 @@ class OcrResult:
     layers: List[OcrCandidate] = field(default_factory=list)
 
 
+def bundled_tesseract_cmd() -> Optional[Path]:
+    """Locate tesseract.exe shipped with the desktop app or set via env."""
+    forced = (os.getenv("SQA_TESSERACT_CMD") or "").strip()
+    if forced:
+        path = Path(forced)
+        if path.is_file():
+            return path
+    roots: List[Path] = []
+    if getattr(sys, "frozen", False):
+        roots.append(Path(sys.executable).resolve().parent)
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            roots.append(Path(meipass))
+    here = Path(__file__).resolve()
+    # backend/app/services/document_parser/ocr_engine.py → repo/packaging
+    try:
+        roots.append(here.parents[3] / "packaging" / "tesseract-runtime")
+        roots.append(here.parents[4] / "packaging" / "tesseract-runtime")
+    except IndexError:
+        pass
+    names = ("tesseract.exe", "tesseract")
+    rels = (
+        ("tesseract",),
+        ("tesseract-runtime",),
+        (),
+    )
+    for root in roots:
+        for rel in rels:
+            folder = root.joinpath(*rel) if rel else root
+            for name in names:
+                cand = folder / name
+                if cand.is_file():
+                    return cand
+    return None
+
+
+def configure_tesseract() -> Optional[Path]:
+    if pytesseract is None:
+        return None
+    cmd = bundled_tesseract_cmd()
+    if not cmd:
+        return None
+    pytesseract.pytesseract.tesseract_cmd = str(cmd)
+    tessdata = cmd.parent / "tessdata"
+    if tessdata.is_dir():
+        os.environ.setdefault("TESSDATA_PREFIX", str(tessdata))
+    return cmd
+
+
 def tesseract_available() -> bool:
     global _tesseract_ok
     if _tesseract_ok is not None:
@@ -53,6 +105,7 @@ def tesseract_available() -> bool:
     if pytesseract is None:
         _tesseract_ok = False
         return False
+    configure_tesseract()
     try:
         pytesseract.get_tesseract_version()
         _tesseract_ok = True
@@ -66,13 +119,16 @@ def rapidocr_available() -> bool:
 
 
 def engine_status() -> Dict[str, object]:
+    tess = tesseract_available()
+    cmd = bundled_tesseract_cmd()
     return {
         "rapidocr": rapidocr_available(),
-        "tesseract": tesseract_available(),
+        "tesseract": tess,
+        "tesseract_cmd": str(cmd) if cmd else None,
         "layers": [
             "pdf-text-layer",
             "rapidocr-onnx",
-            "tesseract" if tesseract_available() else "tesseract (not installed)",
+            "tesseract" if tess else "tesseract (not bundled)",
         ],
     }
 

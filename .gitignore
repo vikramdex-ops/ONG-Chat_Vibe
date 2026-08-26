@@ -35,6 +35,7 @@ backend/data/storage.json
 # Desktop packaging output
 dist-desktop/
 SQA-OG-windows.zip
+packaging/tesseract-runtime/
 
 # Node
 frontend/node_modules/

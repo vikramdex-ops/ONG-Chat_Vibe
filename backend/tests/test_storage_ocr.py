@@ -5,7 +5,13 @@ backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from app.core.storage import current_paths, list_volumes, relocate_data_dir, storage_snapshot
-from app.services.document_parser.ocr_engine import merge_texts, pick_best, score_text, OcrCandidate
+from app.services.document_parser.ocr_engine import (
+    bundled_tesseract_cmd,
+    merge_texts,
+    pick_best,
+    score_text,
+    OcrCandidate,
+)
 
 
 def test_storage_snapshot_has_paths():
@@ -67,6 +73,14 @@ def test_ocr_merge_skips_duplicates():
     merged = merge_texts("Line A\nLine B", "Line B\nLine C extra")
     assert merged.count("Line B") == 1
     assert "Line C extra" in merged
+
+
+def test_bundled_tesseract_env_override(tmp_path, monkeypatch):
+    fake = tmp_path / "tesseract.exe"
+    fake.write_bytes(b"mz")
+    monkeypatch.setenv("SQA_TESSERACT_CMD", str(fake))
+    found = bundled_tesseract_cmd()
+    assert found == fake
 
 
 def test_api_storage_endpoint():

@@ -57,6 +57,10 @@ jobs:
       - name: Build Windows icon from app mark
         run: python packaging/make_icons.py
 
+      - name: Bundle Tesseract OCR
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File packaging/bundle_tesseract.ps1
+
       - name: Package SQA-OG.exe
         run: python -m PyInstaller packaging/sqa-og.spec --noconfirm --clean --distpath dist-desktop
 
@@ -66,6 +70,9 @@ jobs:
           Copy-Item packaging/Launch-SQA-OG.bat dist-desktop/SQA-OG/Launch-SQA-OG.bat -Force
           Copy-Item DESKTOP.md dist-desktop/SQA-OG/README.txt -Force
           Copy-Item packaging/sqa-og.ico dist-desktop/SQA-OG/sqa-og.ico -Force
+          if (Test-Path packaging/tesseract-runtime/tesseract.exe) {
+            Copy-Item packaging/tesseract-runtime dist-desktop/SQA-OG/tesseract -Recurse -Force
+          }
           if (Test-Path SQA-OG-windows.zip) { Remove-Item SQA-OG-windows.zip -Force }
           Compress-Archive -Path dist-desktop/SQA-OG/* -DestinationPath SQA-OG-windows.zip
 
