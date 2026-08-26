@@ -55,7 +55,7 @@ async def test_llm_connection(req: TestLLMRequest):
             }
         gemini = GeminiLLMProvider(
             api_key=req.api_key.strip(),
-            model=req.model or "gemini-2.5-flash",
+            model=req.model or "gemini-3.6-flash",
         )
         health = await gemini.check_health()
         status = health.get("status", "disconnected")
@@ -64,7 +64,7 @@ async def test_llm_connection(req: TestLLMRequest):
                 "success": True,
                 "status": "connected",
                 "endpoint": GEMINI_API_BASE,
-                "message": f"Connected to Google Gemini ({health.get('model', req.model or 'gemini-2.5-flash')})",
+                "message": f"Connected to Google Gemini ({health.get('model', req.model or 'gemini-3.6-flash')})",
             }
         return {
             "success": False,

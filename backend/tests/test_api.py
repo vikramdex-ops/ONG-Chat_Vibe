@@ -120,7 +120,7 @@ def test_api_save_gemini_settings():
         assert res.status_code == 200
         data = res.json()
         assert data["llm_provider"] == "gemini"
-        assert data["llm_model_name"] == "gemini-2.5-flash"
+        assert data["llm_model_name"] == "gemini-3.6-flash"
         assert data["llm_server_url"].startswith("https://")
     finally:
         settings_manager.save_settings(original)

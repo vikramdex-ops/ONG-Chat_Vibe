@@ -19,7 +19,7 @@ import {
 import { AppSettings, HealthStatus } from '../../types';
 import { getSettings, updateSettings, testLLM, kbExportUrl, importKbPack } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
-import { loadUserLlm, saveUserLlm } from '../../lib/userLlm';
+import { DEFAULT_GEMINI_MODEL, loadUserLlm, saveUserLlm } from '../../lib/userLlm';
 import { StoragePanel } from './StoragePanel';
 
 interface SettingsViewProps {
@@ -28,11 +28,11 @@ interface SettingsViewProps {
 }
 
 const GEMINI_MODELS = [
-  { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (recommended)' },
-  { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
-  { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash' },
-  { value: 'gemini-1.5-flash', label: 'gemini-1.5-flash' },
-  { value: 'gemini-1.5-pro', label: 'gemini-1.5-pro' },
+  { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash (recommended)' },
+  { value: 'gemini-3.7-flash', label: 'gemini-3.7-flash (latest flash)' },
+  { value: 'gemini-3.5-flash', label: 'gemini-3.5-flash' },
+  { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite' },
+  { value: 'gemini-3.1-pro', label: 'gemini-3.1-pro' },
 ];
 
 const GEMINI_KEY_URL = 'https://aistudio.google.com/app/apikey';
@@ -90,7 +90,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
     if (provider === 'gemini') {
       next.llm_server_url = GEMINI_API_URL;
       if (!next.llm_model_name || next.llm_model_name === 'default') {
-        next.llm_model_name = 'gemini-2.5-flash';
+        next.llm_model_name = DEFAULT_GEMINI_MODEL;
       }
       setCustomGeminiModel(false);
     } else if (provider === 'mock') {
@@ -380,7 +380,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
                   <label className="text-xs font-semibold text-fg block mb-1">Gemini Model</label>
                   <div className="flex gap-2">
                     <select
-                      value={customGeminiModel ? '__custom__' : (GEMINI_MODELS.some((m) => m.value === formData.llm_model_name) ? formData.llm_model_name : 'gemini-2.5-flash')}
+                      value={customGeminiModel ? '__custom__' : (GEMINI_MODELS.some((m) => m.value === formData.llm_model_name) ? formData.llm_model_name : DEFAULT_GEMINI_MODEL)}
                       onChange={(e) => {
                         if (e.target.value === '__custom__') {
                           setCustomGeminiModel(true);
@@ -411,7 +411,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
                       type="text"
                       value={formData.llm_model_name}
                       onChange={(e) => setFormData({ ...formData, llm_model_name: e.target.value, gemini_model_name: e.target.value })}
-                      placeholder="e.g. gemini-2.5-flash-lite"
+                      placeholder="e.g. gemini-3.5-flash-lite"
                       className="field mt-2"
                     />
                   )}
@@ -466,7 +466,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ health, onSettingsSa
               </p>
               <button type="button" onClick={() => {
                 setFlipPro((v) => !v);
-                const next = flipPro ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
+                const next = flipPro ? DEFAULT_GEMINI_MODEL : 'gemini-3.7-flash';
                 setFormData({ ...formData, llm_model_name: next, gemini_model_name: next });
               }} className="model-flip">
                 <span className="font-semibold">{flipPro ? 'Pro — deeper reasoning' : 'Flash — faster answers'}</span>

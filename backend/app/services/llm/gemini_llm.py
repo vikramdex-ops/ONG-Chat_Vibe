@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Dict, Any, Optional, List
 import httpx
 from app.services.llm.base import BaseLLMProvider
 from app.core.config import settings
+from app.core.gemini_models import DEFAULT_GEMINI_MODEL, normalize_gemini_model
 from app.core.logging_service import app_logger
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -24,10 +25,9 @@ class GeminiLLMProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or settings.llm_api_key or settings.gemini_api_key or ""
-        self.model = model or settings.llm_model_name or settings.gemini_model_name or "gemini-2.5-flash"
-        # Normalize model name if user typed prefix
-        if self.model.startswith("models/"):
-            self.model = self.model.replace("models/", "")
+        self.model = normalize_gemini_model(
+            model or settings.llm_model_name or settings.gemini_model_name or DEFAULT_GEMINI_MODEL
+        )
 
     def _get_url(self, action: str = "generateContent") -> str:
         return f"{GEMINI_API_BASE}/{self.model}:{action}?key={self.api_key}"

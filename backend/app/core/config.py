@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.core.runtime import backend_dir
+from app.core.gemini_models import DEFAULT_GEMINI_MODEL, normalize_gemini_model
 from app.core.storage import (
     DATA_DIR,
     UPLOADS_DIR,
@@ -98,7 +99,13 @@ class SettingsManager:
                     persisted = True
             except Exception as e:
                 print(f"[Config] Error loading settings, falling back to defaults: {e}")
-        return self._apply_env_overrides(loaded or AppSettings(), persisted=persisted)
+        current = self._apply_env_overrides(loaded or AppSettings(), persisted=persisted)
+        if (current.llm_provider or "").lower() == "gemini":
+            current.llm_model_name = normalize_gemini_model(current.llm_model_name)
+            current.gemini_model_name = normalize_gemini_model(
+                current.gemini_model_name or current.llm_model_name
+            )
+        return current
 
     @staticmethod
     def store_llm_keys() -> bool:
@@ -113,7 +120,7 @@ class SettingsManager:
             if default_provider == "gemini":
                 current.llm_server_url = GEMINI_API_BASE
                 if not current.llm_model_name or current.llm_model_name == "default":
-                    current.llm_model_name = "gemini-2.5-flash"
+                    current.llm_model_name = DEFAULT_GEMINI_MODEL
                 if not current.gemini_model_name:
                     current.gemini_model_name = current.llm_model_name
         workers = (os.getenv("SQA_WORKER_COUNT") or "").strip()
@@ -141,9 +148,11 @@ class SettingsManager:
             else:
                 new_settings.llm_server_url = new_settings.llm_server_url.strip().rstrip("/")
             if not new_settings.llm_model_name or new_settings.llm_model_name == "default":
-                new_settings.llm_model_name = "gemini-2.5-flash"
-            if not new_settings.gemini_model_name:
-                new_settings.gemini_model_name = new_settings.llm_model_name
+                new_settings.llm_model_name = DEFAULT_GEMINI_MODEL
+            new_settings.llm_model_name = normalize_gemini_model(new_settings.llm_model_name)
+            new_settings.gemini_model_name = normalize_gemini_model(
+                new_settings.gemini_model_name or new_settings.llm_model_name
+            )
         elif provider == "mock":
             if not new_settings.llm_server_url:
                 new_settings.llm_server_url = "http://mock.local"
